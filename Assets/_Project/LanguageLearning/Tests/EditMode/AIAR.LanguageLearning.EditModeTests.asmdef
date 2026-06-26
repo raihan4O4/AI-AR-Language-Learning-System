@@ -1,0 +1,22 @@
+{
+    "name": "AIAR.LanguageLearning.EditModeTests",
+    "rootNamespace": "AIAR.LanguageLearning.Tests",
+    "references": [
+        "AIAR.LanguageLearning.Domain",
+        "AIAR.LanguageLearning.Application"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "noEngineReferences": true
+}

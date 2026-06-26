@@ -1,0 +1,14 @@
+{
+    "name": "AIAR.LanguageLearning.Domain",
+    "rootNamespace": "AIAR.LanguageLearning.Domain",
+    "references": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

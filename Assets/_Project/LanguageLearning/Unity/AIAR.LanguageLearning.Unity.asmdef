@@ -1,0 +1,18 @@
+{
+    "name": "AIAR.LanguageLearning.Unity",
+    "rootNamespace": "AIAR.LanguageLearning.Unity",
+    "references": [
+        "AIAR.LanguageLearning.Domain",
+        "AIAR.LanguageLearning.Application",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

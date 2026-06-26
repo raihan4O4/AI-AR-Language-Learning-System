@@ -1,0 +1,389 @@
+{
+  "schemaVersion": "1.0.0",
+  "items": [
+    {
+      "id": "book",
+      "canonicalObjectLabel": "book",
+      "category": "education",
+      "recognitionLabels": ["book", "textbook", "notebook"],
+      "translations": [
+        { "language": "en", "text": "book", "phoneticHint": "book", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "किताब", "phoneticHint": "kitaab", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "പുസ്തകം", "phoneticHint": "pusthakam", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "livre", "phoneticHint": "leevr", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "bottle",
+      "canonicalObjectLabel": "bottle",
+      "category": "household",
+      "recognitionLabels": ["bottle", "water bottle"],
+      "translations": [
+        { "language": "en", "text": "bottle", "phoneticHint": "bot-l", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "बोतल", "phoneticHint": "botal", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "കുപ്പി", "phoneticHint": "kuppi", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "bouteille", "phoneticHint": "boo-tay", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "chair",
+      "canonicalObjectLabel": "chair",
+      "category": "furniture",
+      "recognitionLabels": ["chair", "seat"],
+      "translations": [
+        { "language": "en", "text": "chair", "phoneticHint": "chair", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "कुर्सी", "phoneticHint": "kursi", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "കസേര", "phoneticHint": "kasera", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "chaise", "phoneticHint": "shez", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "table",
+      "canonicalObjectLabel": "table",
+      "category": "furniture",
+      "recognitionLabels": ["table", "desk"],
+      "translations": [
+        { "language": "en", "text": "table", "phoneticHint": "tay-bul", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "मेज", "phoneticHint": "mez", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "മേശ", "phoneticHint": "mesha", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "table", "phoneticHint": "tabl", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "laptop",
+      "canonicalObjectLabel": "laptop",
+      "category": "technology",
+      "recognitionLabels": ["laptop", "computer", "notebook computer"],
+      "translations": [
+        { "language": "en", "text": "laptop", "phoneticHint": "lap-top", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "लैपटॉप", "phoneticHint": "laptop", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "ലാപ്ടോപ്പ്", "phoneticHint": "laptop", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "ordinateur portable", "phoneticHint": "or-dee-na-ter por-ta-bl", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "phone",
+      "canonicalObjectLabel": "phone",
+      "category": "technology",
+      "recognitionLabels": ["phone", "mobile phone", "cell phone", "smartphone"],
+      "translations": [
+        { "language": "en", "text": "phone", "phoneticHint": "fone", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "फोन", "phoneticHint": "phone", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "ഫോൺ", "phoneticHint": "phone", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "téléphone", "phoneticHint": "tay-lay-fon", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "cup",
+      "canonicalObjectLabel": "cup",
+      "category": "household",
+      "recognitionLabels": ["cup", "mug", "coffee cup"],
+      "translations": [
+        { "language": "en", "text": "cup", "phoneticHint": "cup", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "कप", "phoneticHint": "cup", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "കപ്പ്", "phoneticHint": "cup", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "tasse", "phoneticHint": "tas", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "pen",
+      "canonicalObjectLabel": "pen",
+      "category": "education",
+      "recognitionLabels": ["pen", "ballpoint pen"],
+      "translations": [
+        { "language": "en", "text": "pen", "phoneticHint": "pen", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "कलम", "phoneticHint": "kalam", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "പേന", "phoneticHint": "pena", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "stylo", "phoneticHint": "stee-lo", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "pencil",
+      "canonicalObjectLabel": "pencil",
+      "category": "education",
+      "recognitionLabels": ["pencil"],
+      "translations": [
+        { "language": "en", "text": "pencil", "phoneticHint": "pen-sil", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "पेंसिल", "phoneticHint": "pencil", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "പെൻസിൽ", "phoneticHint": "pencil", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "crayon", "phoneticHint": "kray-on", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "bag",
+      "canonicalObjectLabel": "bag",
+      "category": "personal",
+      "recognitionLabels": ["bag", "backpack", "handbag"],
+      "translations": [
+        { "language": "en", "text": "bag", "phoneticHint": "bag", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "बैग", "phoneticHint": "bag", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "ബാഗ്", "phoneticHint": "bag", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "sac", "phoneticHint": "sak", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "door",
+      "canonicalObjectLabel": "door",
+      "category": "household",
+      "recognitionLabels": ["door"],
+      "translations": [
+        { "language": "en", "text": "door", "phoneticHint": "door", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "दरवाजा", "phoneticHint": "darwaza", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "വാതിൽ", "phoneticHint": "vaathil", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "porte", "phoneticHint": "port", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "window",
+      "canonicalObjectLabel": "window",
+      "category": "household",
+      "recognitionLabels": ["window"],
+      "translations": [
+        { "language": "en", "text": "window", "phoneticHint": "win-dow", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "खिड़की", "phoneticHint": "khidki", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "ജനൽ", "phoneticHint": "janal", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "fenêtre", "phoneticHint": "feh-netr", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "clock",
+      "canonicalObjectLabel": "clock",
+      "category": "household",
+      "recognitionLabels": ["clock", "wall clock"],
+      "translations": [
+        { "language": "en", "text": "clock", "phoneticHint": "clock", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "घड़ी", "phoneticHint": "ghadi", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "ഘടികാരം", "phoneticHint": "ghadikaram", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "horloge", "phoneticHint": "or-loj", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "key",
+      "canonicalObjectLabel": "key",
+      "category": "personal",
+      "recognitionLabels": ["key", "keys"],
+      "translations": [
+        { "language": "en", "text": "key", "phoneticHint": "kee", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "चाबी", "phoneticHint": "chaabi", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "താക്കോൽ", "phoneticHint": "thaakkol", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "clé", "phoneticHint": "klay", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "shoe",
+      "canonicalObjectLabel": "shoe",
+      "category": "clothing",
+      "recognitionLabels": ["shoe", "shoes", "sneaker"],
+      "translations": [
+        { "language": "en", "text": "shoe", "phoneticHint": "shoo", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "जूता", "phoneticHint": "joota", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "ചെരുപ്പ്", "phoneticHint": "cheruppu", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "chaussure", "phoneticHint": "sho-sur", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "shirt",
+      "canonicalObjectLabel": "shirt",
+      "category": "clothing",
+      "recognitionLabels": ["shirt", "t-shirt", "top"],
+      "translations": [
+        { "language": "en", "text": "shirt", "phoneticHint": "shirt", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "कमीज", "phoneticHint": "kameez", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "ഷർട്ട്", "phoneticHint": "shirt", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "chemise", "phoneticHint": "shuh-meez", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "spoon",
+      "canonicalObjectLabel": "spoon",
+      "category": "kitchen",
+      "recognitionLabels": ["spoon"],
+      "translations": [
+        { "language": "en", "text": "spoon", "phoneticHint": "spoon", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "चम्मच", "phoneticHint": "chammach", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "കരണ്ടി", "phoneticHint": "karandi", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "cuillère", "phoneticHint": "kwee-yer", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "plate",
+      "canonicalObjectLabel": "plate",
+      "category": "kitchen",
+      "recognitionLabels": ["plate", "dish"],
+      "translations": [
+        { "language": "en", "text": "plate", "phoneticHint": "playt", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "थाली", "phoneticHint": "thaali", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "പ്ലേറ്റ്", "phoneticHint": "plate", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "assiette", "phoneticHint": "ah-see-yet", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "car",
+      "canonicalObjectLabel": "car",
+      "category": "transport",
+      "recognitionLabels": ["car", "automobile", "vehicle"],
+      "translations": [
+        { "language": "en", "text": "car", "phoneticHint": "car", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "कार", "phoneticHint": "car", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "കാർ", "phoneticHint": "car", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "voiture", "phoneticHint": "vwa-tyur", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "bus",
+      "canonicalObjectLabel": "bus",
+      "category": "transport",
+      "recognitionLabels": ["bus"],
+      "translations": [
+        { "language": "en", "text": "bus", "phoneticHint": "bus", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "बस", "phoneticHint": "bus", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "ബസ്", "phoneticHint": "bus", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "bus", "phoneticHint": "bus", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "bicycle",
+      "canonicalObjectLabel": "bicycle",
+      "category": "transport",
+      "recognitionLabels": ["bicycle", "bike", "cycle"],
+      "translations": [
+        { "language": "en", "text": "bicycle", "phoneticHint": "bye-si-kul", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "साइकिल", "phoneticHint": "cycle", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "സൈക്കിൾ", "phoneticHint": "cycle", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "vélo", "phoneticHint": "vay-lo", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "bed",
+      "canonicalObjectLabel": "bed",
+      "category": "furniture",
+      "recognitionLabels": ["bed"],
+      "translations": [
+        { "language": "en", "text": "bed", "phoneticHint": "bed", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "बिस्तर", "phoneticHint": "bistar", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "കിടക്ക", "phoneticHint": "kidakka", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "lit", "phoneticHint": "lee", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "pillow",
+      "canonicalObjectLabel": "pillow",
+      "category": "household",
+      "recognitionLabels": ["pillow", "cushion"],
+      "translations": [
+        { "language": "en", "text": "pillow", "phoneticHint": "pill-oh", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "तकिया", "phoneticHint": "takiya", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "തലയണ", "phoneticHint": "thalayana", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "oreiller", "phoneticHint": "or-ay-yay", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "lamp",
+      "canonicalObjectLabel": "lamp",
+      "category": "household",
+      "recognitionLabels": ["lamp", "light", "light bulb"],
+      "translations": [
+        { "language": "en", "text": "lamp", "phoneticHint": "lamp", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "दीपक", "phoneticHint": "deepak", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "വിളക്ക്", "phoneticHint": "vilakku", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "lampe", "phoneticHint": "lamp", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "fan",
+      "canonicalObjectLabel": "fan",
+      "category": "household",
+      "recognitionLabels": ["fan", "ceiling fan"],
+      "translations": [
+        { "language": "en", "text": "fan", "phoneticHint": "fan", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "पंखा", "phoneticHint": "pankha", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "ഫാൻ", "phoneticHint": "fan", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "ventilateur", "phoneticHint": "von-tee-la-ter", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "apple",
+      "canonicalObjectLabel": "apple",
+      "category": "food",
+      "recognitionLabels": ["apple"],
+      "translations": [
+        { "language": "en", "text": "apple", "phoneticHint": "ap-pul", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "सेब", "phoneticHint": "seb", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "ആപ്പിൾ", "phoneticHint": "apple", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "pomme", "phoneticHint": "pom", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "banana",
+      "canonicalObjectLabel": "banana",
+      "category": "food",
+      "recognitionLabels": ["banana"],
+      "translations": [
+        { "language": "en", "text": "banana", "phoneticHint": "ba-na-na", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "केला", "phoneticHint": "kela", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "വാഴപ്പഴം", "phoneticHint": "vazhapazham", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "banane", "phoneticHint": "ba-nan", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "water",
+      "canonicalObjectLabel": "water",
+      "category": "food",
+      "recognitionLabels": ["water", "glass of water", "water bottle"],
+      "translations": [
+        { "language": "en", "text": "water", "phoneticHint": "wah-ter", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "पानी", "phoneticHint": "paani", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "വെള്ളം", "phoneticHint": "vellam", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "eau", "phoneticHint": "oh", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "milk",
+      "canonicalObjectLabel": "milk",
+      "category": "food",
+      "recognitionLabels": ["milk", "milk carton"],
+      "translations": [
+        { "language": "en", "text": "milk", "phoneticHint": "milk", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "दूध", "phoneticHint": "doodh", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "പാൽ", "phoneticHint": "paal", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "lait", "phoneticHint": "lay", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "rice",
+      "canonicalObjectLabel": "rice",
+      "category": "food",
+      "recognitionLabels": ["rice", "bowl of rice"],
+      "translations": [
+        { "language": "en", "text": "rice", "phoneticHint": "rice", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "चावल", "phoneticHint": "chawal", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "അരി", "phoneticHint": "ari", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "riz", "phoneticHint": "ree", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "flower",
+      "canonicalObjectLabel": "flower",
+      "category": "nature",
+      "recognitionLabels": ["flower", "flowers"],
+      "translations": [
+        { "language": "en", "text": "flower", "phoneticHint": "flow-er", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "फूल", "phoneticHint": "phool", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "പൂവ്", "phoneticHint": "poovu", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "fleur", "phoneticHint": "flur", "pronunciationLocale": "fr-FR" }
+      ]
+    },
+    {
+      "id": "tree",
+      "canonicalObjectLabel": "tree",
+      "category": "nature",
+      "recognitionLabels": ["tree", "plant"],
+      "translations": [
+        { "language": "en", "text": "tree", "phoneticHint": "tree", "pronunciationLocale": "en-US" },
+        { "language": "hi", "text": "पेड़", "phoneticHint": "ped", "pronunciationLocale": "hi-IN" },
+        { "language": "ml", "text": "മരം", "phoneticHint": "maram", "pronunciationLocale": "ml-IN" },
+        { "language": "fr", "text": "arbre", "phoneticHint": "arbr", "pronunciationLocale": "fr-FR" }
+      ]
+    }
+  ]
+}
