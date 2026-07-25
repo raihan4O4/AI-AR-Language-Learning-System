@@ -7,6 +7,52 @@ namespace AIAR.LanguageLearning.Application.Services
 {
     public sealed class QuizService
     {
+        public IReadOnlyList<VocabularyEntry> CreateQuestionSequence(
+            IReadOnlyList<VocabularyEntry> catalog,
+            LanguageCode language,
+            int questionCount,
+            int? seed = null)
+        {
+            if (catalog == null)
+                throw new ArgumentNullException(nameof(catalog));
+
+            if (questionCount < 1)
+                throw new ArgumentOutOfRangeException(nameof(questionCount));
+
+            var candidates = catalog
+                .Where(entry => entry != null && entry.TryGetTranslation(language, out _))
+                .GroupBy(entry => entry.Id, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToList();
+
+            if (candidates.Count < 2)
+                throw new InvalidOperationException(
+                    $"At least two vocabulary entries with {language} translations are required.");
+
+            var random = seed.HasValue ? new Random(seed.Value) : new Random();
+            var sequence = new List<VocabularyEntry>(questionCount);
+            while (sequence.Count < questionCount)
+            {
+                Shuffle(candidates, random);
+                if (sequence.Count > 0 &&
+                    string.Equals(
+                        sequence[sequence.Count - 1].Id,
+                        candidates[0].Id,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    var swapIndex = candidates.Count > 1 ? 1 : 0;
+                    var first = candidates[0];
+                    candidates[0] = candidates[swapIndex];
+                    candidates[swapIndex] = first;
+                }
+
+                var remaining = questionCount - sequence.Count;
+                sequence.AddRange(candidates.Take(Math.Min(remaining, candidates.Count)));
+            }
+
+            return sequence;
+        }
+
         public QuizQuestion CreateTranslationQuestion(
             VocabularyEntry target,
             LanguageCode language,

@@ -42,7 +42,7 @@ namespace AIAR.LanguageLearning.Application.Services
                     .Select(Normalize)
                     .Where(label => label.Length > 2);
 
-                if (normalizedLabels.Any(label => candidates.Any(candidate => candidate.Contains(label))))
+                if (normalizedLabels.Any(label => candidates.Any(candidate => ContainsWholePhrase(candidate, label))))
                 {
                     entry = vocabularyEntry;
                     return true;
@@ -50,6 +50,16 @@ namespace AIAR.LanguageLearning.Application.Services
             }
 
             return false;
+        }
+
+        static bool ContainsWholePhrase(string candidate, string expectedPhrase)
+        {
+            if (string.IsNullOrEmpty(candidate) || string.IsNullOrEmpty(expectedPhrase))
+                return false;
+
+            var paddedCandidate = $" {candidate} ";
+            var paddedPhrase = $" {expectedPhrase} ";
+            return paddedCandidate.IndexOf(paddedPhrase, StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         public IEnumerable<string> GetCandidateForms(string label)

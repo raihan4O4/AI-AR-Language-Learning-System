@@ -2,14 +2,37 @@ using System;
 
 namespace AIAR.LanguageLearning.Application.Models
 {
+    public enum RecognitionServiceState
+    {
+        Stopped,
+        Initializing,
+        Running,
+        AwaitingCamera,
+        Degraded,
+        Faulted
+    }
+
+    public readonly struct RecognitionServiceStatus
+    {
+        public RecognitionServiceStatus(RecognitionServiceState state, string message)
+        {
+            State = state;
+            Message = string.IsNullOrWhiteSpace(message) ? state.ToString() : message.Trim();
+        }
+
+        public RecognitionServiceState State { get; }
+
+        public string Message { get; }
+    }
+
     public readonly struct NormalizedBoundingBox
     {
         public NormalizedBoundingBox(float x, float y, float width, float height)
         {
             X = Clamp01(x);
             Y = Clamp01(y);
-            Width = Clamp01(width);
-            Height = Clamp01(height);
+            Width = Math.Min(Clamp01(width), 1f - X);
+            Height = Math.Min(Clamp01(height), 1f - Y);
         }
 
         public float X { get; }

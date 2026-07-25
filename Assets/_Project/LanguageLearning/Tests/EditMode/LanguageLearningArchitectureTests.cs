@@ -26,6 +26,28 @@ namespace AIAR.LanguageLearning.Tests
         }
 
         [Test]
+        public void ObjectLabelNormalizer_DoesNotMatchPartialWords()
+        {
+            var catalog = new[]
+            {
+                Entry("car", "car", "transport", "car")
+            };
+
+            var matched = new ObjectLabelNormalizer().TryFindBestMatch("carrot", catalog, out _);
+
+            Assert.IsFalse(matched);
+        }
+
+        [Test]
+        public void NormalizedBoundingBox_StaysInsideTheViewport()
+        {
+            var box = new NormalizedBoundingBox(0.85f, 0.9f, 0.5f, 0.4f);
+
+            Assert.AreEqual(1f, box.X + box.Width, 0.0001f);
+            Assert.AreEqual(1f, box.Y + box.Height, 0.0001f);
+        }
+
+        [Test]
         public void VocabularyLearningService_RecordsObjectViews()
         {
             var catalog = new[]
@@ -70,6 +92,24 @@ namespace AIAR.LanguageLearning.Tests
         }
 
         [Test]
+        public void QuizService_CreatesVariedSequenceWithoutConsecutiveRepeats()
+        {
+            var catalog = Catalog();
+
+            var sequence = new QuizService().CreateQuestionSequence(
+                catalog,
+                LanguageCode.Malayalam,
+                questionCount: 9,
+                seed: 456);
+
+            Assert.AreEqual(9, sequence.Count);
+            Assert.AreEqual(catalog.Count, sequence.Take(catalog.Count).Select(entry => entry.Id).Distinct().Count());
+            Assert.IsTrue(sequence.All(entry => entry.TryGetTranslation(LanguageCode.Malayalam, out _)));
+            for (var index = 1; index < sequence.Count; index++)
+                Assert.AreNotEqual(sequence[index - 1].Id, sequence[index].Id);
+        }
+
+        [Test]
         public void AdaptiveRevisionService_PrioritizesNewAndWeakWords()
         {
             var now = new DateTime(2026, 6, 15, 8, 0, 0, DateTimeKind.Utc);
@@ -107,6 +147,7 @@ namespace AIAR.LanguageLearning.Tests
             Assert.AreEqual(2, summary.SeenWords);
             Assert.AreEqual(1, summary.MasteredWords);
             Assert.AreEqual(1, summary.StrugglingWords);
+            Assert.AreEqual(0.5d, summary.RetentionRate, 0.0001d);
             Assert.Greater(summary.RetentionRate, 0d);
         }
 

@@ -7,6 +7,7 @@ using AIAR.LanguageLearning.Unity.Presentation;
 using AIAR.LanguageLearning.Unity.Recognition;
 using AIAR.LanguageLearning.Unity.Speech;
 using TMPro;
+using Unity.InferenceEngine;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -18,6 +19,7 @@ using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
 using UnityEngine.TextCore.LowLevel;
 using UnityEngine.UI;
+using UnityEngine.XR.ARFoundation;
 
 namespace AIAR.LanguageLearning.Editor.SceneSetup
 {
@@ -26,6 +28,8 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
     {
         const string MainScenePath = "Assets/Scenes/Main.unity";
         const string CatalogPath = "Assets/_Project/LanguageLearning/Content/Resources/Vocabulary/vocabulary_catalog.json";
+        const string ModelDirectoryPath = "Assets/_Project/LanguageLearning/ML/Models";
+        const string CocoLabelsPath = ModelDirectoryPath + "/coco_labels.txt";
         const string PendingSetupPath = "Assets/_Project/LanguageLearning/Editor/SceneSetup/PENDING_MAIN_SCENE_SETUP.txt";
         const string SetupReportPath = "Logs/language-learning-scene-setup.log";
         const string FontAssetDirectory = "Assets/_Project/LanguageLearning/Content/Resources/Fonts/TMP";
@@ -61,6 +65,12 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
         public static void SetupMainSceneMenu()
         {
             SetupMainScene();
+        }
+
+        [MenuItem("AI-AR Language Learning/Use Sentis Detector In Main Scene")]
+        public static void UseSentisDetectorInMainScene()
+        {
+            SetupMainScene(useSentisWhenAvailable: true, requireSentisModel: true);
         }
 
         public static void RunFromCommandLine()
@@ -116,25 +126,40 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
             }
         }
 
-        static void SetupMainScene()
+        static void SetupMainScene(bool useSentisWhenAvailable = true, bool requireSentisModel = false)
         {
             var scene = OpenMainScene();
 
             ConfigureBuildSettings();
             ConfigureAndroidPlayerSettings();
             var uiFont = EnsureMultilingualFontAsset();
+            var sentisModel = FindFirstSentisModelAsset();
+            var cocoLabels = AssetDatabase.LoadAssetAtPath<TextAsset>(CocoLabelsPath);
+
+            if (requireSentisModel && sentisModel == null)
+                throw new InvalidOperationException($"No Sentis/ONNX ModelAsset found in {ModelDirectoryPath}. Add a .onnx model there, let Unity import it, then run this menu again.");
 
             var runtimeRoot = RecreateRoot("LanguageLearning Runtime");
             var repository = runtimeRoot.AddComponent<ResourcesVocabularyRepository>();
             var mockRecognition = runtimeRoot.AddComponent<MockObjectRecognitionService>();
+            var sentisRecognition = runtimeRoot.AddComponent<SentisObjectRecognitionService>();
             var tts = runtimeRoot.AddComponent<AndroidTextToSpeechService>();
             var compositionRoot = runtimeRoot.AddComponent<LanguageLearningCompositionRoot>();
             var sessionController = runtimeRoot.AddComponent<LearningSessionController>();
+            var mvpController = runtimeRoot.AddComponent<LearningMvpController>();
+            var activeRecognition = useSentisWhenAvailable && sentisModel != null
+                ? (MonoBehaviour)sentisRecognition
+                : mockRecognition;
 
             ConfigureRepository(repository);
             ConfigureMockRecognition(mockRecognition);
-            ConfigureCompositionRoot(compositionRoot, repository, mockRecognition, tts);
+            ConfigureSentisRecognition(sentisRecognition, sentisModel, cocoLabels);
+            mockRecognition.enabled = activeRecognition == mockRecognition;
+            sentisRecognition.enabled = activeRecognition == sentisRecognition;
+            ConfigureCompositionRoot(compositionRoot, repository, activeRecognition, tts);
             ConfigureSessionController(sessionController, compositionRoot);
+            ConfigureMvpController(mvpController, sessionController, compositionRoot);
+            ConfigureArScanLifecycle();
 
             EnsureEventSystem();
             var presenter = CreateLanguageLearningUi(sessionController, uiFont);
@@ -148,9 +173,26 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
                 "Language learning Main scene setup complete.\n" +
                 "- Main scene added to Build Settings.\n" +
                 "- Android package/settings prepared for APK builds.\n" +
-                "- Runtime composition root, mock recognizer, TTS adapter, and vocabulary repository added.\n" +
+                $"- Runtime composition root, {(activeRecognition == sentisRecognition ? "Sentis recognizer" : "mock recognizer")}, TTS adapter, and vocabulary repository added.\n" +
+                "- Sentis detector auto-wiring checks ML/Models for imported ModelAssets.\n" +
+                "- AR camera components remain off until the learner opens Scan.\n" +
                 "- Screen-space vocabulary overlay and language/speech buttons added.\n" +
                 "- Existing AR Session and XR Origin were preserved.");
+        }
+
+        static void ConfigureArScanLifecycle()
+        {
+            var arSession = UnityEngine.Object.FindAnyObjectByType<ARSession>(FindObjectsInactive.Include);
+            if (arSession != null)
+                arSession.enabled = false;
+
+            var cameraManager = UnityEngine.Object.FindAnyObjectByType<ARCameraManager>(FindObjectsInactive.Include);
+            if (cameraManager != null)
+                cameraManager.enabled = false;
+
+            var cameraBackground = UnityEngine.Object.FindAnyObjectByType<ARCameraBackground>(FindObjectsInactive.Include);
+            if (cameraBackground != null)
+                cameraBackground.enabled = false;
         }
 
         static Scene OpenMainScene()
@@ -185,6 +227,23 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
             EditorUserBuildSettings.buildAppBundle = false;
         }
 
+        static ModelAsset FindFirstSentisModelAsset()
+        {
+            if (!Directory.Exists(ModelDirectoryPath))
+                return null;
+
+            var modelGuids = AssetDatabase.FindAssets("t:ModelAsset", new[] { ModelDirectoryPath });
+            for (var index = 0; index < modelGuids.Length; index++)
+            {
+                var modelPath = AssetDatabase.GUIDToAssetPath(modelGuids[index]);
+                var modelAsset = AssetDatabase.LoadAssetAtPath<ModelAsset>(modelPath);
+                if (modelAsset != null)
+                    return modelAsset;
+            }
+
+            return null;
+        }
+
         static TMP_FontAsset EnsureMultilingualFontAsset()
         {
             Directory.CreateDirectory(FontAssetDirectory);
@@ -211,7 +270,7 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
         static TMP_FontAsset EnsureTmpFontAsset(string fontPath, string assetPath)
         {
             var existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(assetPath);
-            if (existing != null)
+            if (HasUsableAtlas(existing))
                 return existing;
 
             var font = AssetDatabase.LoadAssetAtPath<Font>(fontPath);
@@ -221,6 +280,10 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
                 return null;
             }
 
+            if (existing != null)
+                AssetDatabase.DeleteAsset(assetPath);
+
+            FontEngine.InitializeFontEngine();
             var fontAsset = TMP_FontAsset.CreateFontAsset(
                 font,
                 90,
@@ -230,15 +293,54 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
                 1024,
                 AtlasPopulationMode.Dynamic,
                 true);
+            if (fontAsset == null)
+            {
+                Debug.LogWarning($"Could not create a TextMeshPro font asset from {fontPath}.");
+                return null;
+            }
+
             fontAsset.name = Path.GetFileNameWithoutExtension(assetPath);
             AssetDatabase.CreateAsset(fontAsset, assetPath);
+
+            // CreateFontAsset builds these objects in memory. They must be saved as sub-assets or
+            // scene reloads leave m_AtlasTextures/material unassigned and every TMP label fails.
+            var atlasTextures = fontAsset.atlasTextures;
+            if (atlasTextures != null)
+            {
+                for (var index = 0; index < atlasTextures.Length; index++)
+                {
+                    if (atlasTextures[index] != null &&
+                        !AssetDatabase.Contains(atlasTextures[index]))
+                    {
+                        AssetDatabase.AddObjectToAsset(atlasTextures[index], fontAsset);
+                    }
+                }
+            }
+
+            if (fontAsset.material != null && !AssetDatabase.Contains(fontAsset.material))
+                AssetDatabase.AddObjectToAsset(fontAsset.material, fontAsset);
+
+            EditorUtility.SetDirty(fontAsset);
+            AssetDatabase.SaveAssets();
             return fontAsset;
+        }
+
+        static bool HasUsableAtlas(TMP_FontAsset fontAsset)
+        {
+            return fontAsset != null &&
+                   fontAsset.atlasTextures != null &&
+                   fontAsset.atlasTextures.Length > 0 &&
+                   fontAsset.atlasTextures[0] != null &&
+                   fontAsset.material != null;
         }
 
         static void AddFallback(TMP_FontAsset fontAsset, TMP_FontAsset fallback)
         {
             if (fontAsset == null || fallback == null || fontAsset == fallback)
                 return;
+
+            if (fontAsset.fallbackFontAssetTable == null)
+                fontAsset.fallbackFontAssetTable = new System.Collections.Generic.List<TMP_FontAsset>();
 
             if (!fontAsset.fallbackFontAssetTable.Contains(fallback))
                 fontAsset.fallbackFontAssetTable.Add(fallback);
@@ -250,6 +352,9 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
                 return;
 
             var settings = TMP_Settings.instance;
+            if (TMP_Settings.fallbackFontAssets == null)
+                TMP_Settings.fallbackFontAssets = new System.Collections.Generic.List<TMP_FontAsset>();
+
             if (!TMP_Settings.fallbackFontAssets.Contains(fontAsset))
             {
                 TMP_Settings.fallbackFontAssets.Add(fontAsset);
@@ -291,15 +396,41 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
 
+        static void ConfigureSentisRecognition(
+            SentisObjectRecognitionService sentisRecognition,
+            ModelAsset modelAsset,
+            TextAsset labelAsset)
+        {
+            var serializedObject = new SerializedObject(sentisRecognition);
+            serializedObject.FindProperty("m_CameraManager").objectReferenceValue = UnityEngine.Object.FindAnyObjectByType<ARCameraManager>();
+            serializedObject.FindProperty("m_ModelAsset").objectReferenceValue = modelAsset;
+            serializedObject.FindProperty("m_LabelAsset").objectReferenceValue = labelAsset;
+            serializedObject.FindProperty("m_Backend").intValue = (int)BackendType.GPUCompute;
+            serializedObject.FindProperty("m_InputLayout").enumValueIndex = (int)TensorLayout.NCHW;
+            serializedObject.FindProperty("m_OutputFormat").enumValueIndex = (int)SentisDetectionOutputFormat.YoloV8CenterXYWH;
+            serializedObject.FindProperty("m_ImageTransformation").intValue = (int)UnityEngine.XR.ARSubsystems.XRCpuImage.Transformation.MirrorY;
+            serializedObject.FindProperty("m_PreserveAspectRatio").boolValue = true;
+            serializedObject.FindProperty("m_ApplyCameraDisplayTransform").boolValue = true;
+            serializedObject.FindProperty("m_InputWidth").intValue = 640;
+            serializedObject.FindProperty("m_InputHeight").intValue = 640;
+            serializedObject.FindProperty("m_ConfidenceThreshold").floatValue = 0.35f;
+            serializedObject.FindProperty("m_NmsThreshold").floatValue = 0.45f;
+            serializedObject.FindProperty("m_InferenceIntervalSeconds").floatValue = 0.2f;
+            serializedObject.FindProperty("m_LayersPerFrame").intValue = 6;
+            serializedObject.FindProperty("m_MaxDetections").intValue = 8;
+            serializedObject.FindProperty("m_DebugLogging").boolValue = false;
+            serializedObject.ApplyModifiedPropertiesWithoutUndo();
+        }
+
         static void ConfigureCompositionRoot(
             LanguageLearningCompositionRoot compositionRoot,
             ResourcesVocabularyRepository repository,
-            MockObjectRecognitionService mockRecognition,
+            MonoBehaviour recognitionService,
             AndroidTextToSpeechService tts)
         {
             var serializedObject = new SerializedObject(compositionRoot);
             serializedObject.FindProperty("m_VocabularyRepository").objectReferenceValue = repository;
-            serializedObject.FindProperty("m_ObjectRecognitionService").objectReferenceValue = mockRecognition;
+            serializedObject.FindProperty("m_ObjectRecognitionService").objectReferenceValue = recognitionService;
             serializedObject.FindProperty("m_TextToSpeechService").objectReferenceValue = tts;
             serializedObject.FindProperty("m_PlayerPrefsProgressKey").stringValue = "aiar.language-learning.progress.v1";
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
@@ -313,6 +444,23 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
             serializedObject.FindProperty("m_CompositionRoot").objectReferenceValue = compositionRoot;
             serializedObject.FindProperty("m_LearningLanguage").enumValueIndex = (int)LanguageCode.Hindi;
             serializedObject.FindProperty("m_MinimumRecognitionConfidence").floatValue = 0.35f;
+            serializedObject.FindProperty("m_AutoCreateBoundingBoxOverlay").boolValue = true;
+            serializedObject.FindProperty("m_DebugRecognitionLogging").boolValue = false;
+            serializedObject.FindProperty("m_MinimumStableFrames").intValue = 1;
+            serializedObject.FindProperty("m_DetectionHoldSeconds").floatValue = 2f;
+            serializedObject.FindProperty("m_ViewRecordingCooldownSeconds").floatValue = 12f;
+            serializedObject.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        static void ConfigureMvpController(
+            LearningMvpController mvpController,
+            LearningSessionController sessionController,
+            LanguageLearningCompositionRoot compositionRoot)
+        {
+            var serializedObject = new SerializedObject(mvpController);
+            serializedObject.FindProperty("m_SessionController").objectReferenceValue = sessionController;
+            serializedObject.FindProperty("m_CompositionRoot").objectReferenceValue = compositionRoot;
+            serializedObject.FindProperty("m_QuizLength").intValue = 5;
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
 
@@ -336,7 +484,18 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
             LearningSessionController sessionController,
             TMP_FontAsset fontAsset)
         {
-            var canvasRoot = RecreateRoot("LanguageLearning UI");
+            var existingCanvasRoot = GameObject.Find("LanguageLearning UI");
+            if (existingCanvasRoot != null)
+                UnityEngine.Object.DestroyImmediate(existingCanvasRoot);
+
+            var canvasRoot = new GameObject("LanguageLearning UI", typeof(RectTransform));
+            Undo.RegisterCreatedObjectUndo(canvasRoot, "Create LanguageLearning UI");
+            var canvasRect = canvasRoot.GetComponent<RectTransform>();
+            canvasRect.localScale = Vector3.one;
+            canvasRect.anchorMin = Vector2.zero;
+            canvasRect.anchorMax = Vector2.one;
+            canvasRect.offsetMin = Vector2.zero;
+            canvasRect.offsetMax = Vector2.zero;
             var canvas = canvasRoot.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = 100;
@@ -357,15 +516,6 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
             var sourceText = CreateText(panel.transform, "Source Word", "book", 36f, FontStyles.Normal, TextAlignmentOptions.Left, fontAsset);
             var translatedText = CreateText(panel.transform, "Translated Word", "किताब", 68f, FontStyles.Bold, TextAlignmentOptions.Left, fontAsset);
             var phoneticText = CreateText(panel.transform, "Phonetic Hint", "kitaab", 28f, FontStyles.Italic, TextAlignmentOptions.Left, fontAsset);
-            var buttonRow = CreateButtonRow(panel.transform);
-
-            var speakButton = CreateButton(buttonRow.transform, "Speak Button", "Speak", new Color(0.12f, 0.47f, 0.84f, 1f), 150f);
-            UnityEventTools.AddPersistentListener(speakButton.onClick, sessionController.SpeakCurrentWord);
-
-            CreateLanguageButton(buttonRow.transform, sessionController, LanguageCode.English, "EN");
-            CreateLanguageButton(buttonRow.transform, sessionController, LanguageCode.Hindi, "HI");
-            CreateLanguageButton(buttonRow.transform, sessionController, LanguageCode.Malayalam, "ML");
-            CreateLanguageButton(buttonRow.transform, sessionController, LanguageCode.French, "FR");
 
             var presenterObject = new SerializedObject(presenter);
             presenterObject.FindProperty("m_TranslatedWordText").objectReferenceValue = translatedText;
@@ -492,69 +642,6 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
             layout.preferredHeight = Mathf.Max(42f, fontSize + 18f);
 
             return textComponent;
-        }
-
-        static GameObject CreateButtonRow(Transform parent)
-        {
-            var row = new GameObject("Controls", typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
-            row.transform.SetParent(parent, false);
-
-            var horizontalLayout = row.GetComponent<HorizontalLayoutGroup>();
-            horizontalLayout.spacing = 10f;
-            horizontalLayout.childAlignment = TextAnchor.MiddleLeft;
-            horizontalLayout.childControlWidth = true;
-            horizontalLayout.childControlHeight = true;
-            horizontalLayout.childForceExpandWidth = false;
-            horizontalLayout.childForceExpandHeight = false;
-
-            var layout = row.GetComponent<LayoutElement>();
-            layout.minHeight = 64f;
-            layout.preferredHeight = 64f;
-
-            return row;
-        }
-
-        static void CreateLanguageButton(
-            Transform parent,
-            LearningSessionController sessionController,
-            LanguageCode language,
-            string label)
-        {
-            var button = CreateButton(parent, $"{label} Button", label, new Color(0.22f, 0.24f, 0.27f, 1f), 76f);
-            UnityEventTools.AddIntPersistentListener(button.onClick, sessionController.SetLearningLanguage, (int)language);
-        }
-
-        static Button CreateButton(Transform parent, string name, string label, Color color, float width)
-        {
-            var buttonObject = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
-            buttonObject.transform.SetParent(parent, false);
-
-            var image = buttonObject.GetComponent<Image>();
-            image.color = color;
-
-            var button = buttonObject.GetComponent<Button>();
-            button.targetGraphic = image;
-
-            var colors = button.colors;
-            colors.highlightedColor = Color.Lerp(color, Color.white, 0.15f);
-            colors.pressedColor = Color.Lerp(color, Color.black, 0.15f);
-            button.colors = colors;
-
-            var layout = buttonObject.GetComponent<LayoutElement>();
-            layout.minWidth = width;
-            layout.preferredWidth = width;
-            layout.minHeight = 56f;
-            layout.preferredHeight = 56f;
-
-            var text = CreateText(buttonObject.transform, "Label", label, 24f, FontStyles.Bold, TextAlignmentOptions.Center, null);
-            var textRect = text.GetComponent<RectTransform>();
-            textRect.anchorMin = Vector2.zero;
-            textRect.anchorMax = Vector2.one;
-            textRect.offsetMin = Vector2.zero;
-            textRect.offsetMax = Vector2.zero;
-            text.color = Color.white;
-
-            return button;
         }
 
         static void WriteReport(string report)

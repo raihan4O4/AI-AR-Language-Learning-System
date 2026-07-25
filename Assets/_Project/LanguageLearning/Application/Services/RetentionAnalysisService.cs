@@ -35,7 +35,7 @@ namespace AIAR.LanguageLearning.Application.Services
             var masteredWords = trackedProgress.Count(item => item.MasteryScore >= masteredThreshold);
             var strugglingWords = trackedProgress.Count(item => item.TimesSeen > 0 && item.MasteryScore < strugglingThreshold);
             var averageMastery = trackedProgress.Average(item => item.MasteryScore);
-            var retentionRate = masteredWords / (double)trackedProgress.Length;
+            var retentionRate = seenWords == 0 ? 0d : masteredWords / (double)seenWords;
 
             return new RetentionSummary(
                 trackedProgress.Length,

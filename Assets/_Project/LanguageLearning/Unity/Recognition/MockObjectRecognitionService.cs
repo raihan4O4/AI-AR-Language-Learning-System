@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using AIAR.LanguageLearning.Application.Models;
 using AIAR.LanguageLearning.Application.Ports;
 using UnityEngine;
@@ -29,6 +30,10 @@ namespace AIAR.LanguageLearning.Unity.Recognition
 
         public event Action<ObjectRecognitionResult> ObjectRecognized;
 
+        public event Action<IReadOnlyList<ObjectRecognitionResult>> ObjectRecognitionsUpdated;
+
+        public event Action<RecognitionServiceStatus> StatusChanged;
+
         public bool IsRunning => m_RecognitionLoop != null;
 
         void OnEnable()
@@ -48,6 +53,9 @@ namespace AIAR.LanguageLearning.Unity.Recognition
                 return;
 
             m_RecognitionLoop = StartCoroutine(RecognitionLoop());
+            StatusChanged?.Invoke(new RecognitionServiceStatus(
+                RecognitionServiceState.Running,
+                "Mock recognition is running."));
         }
 
         public void StopRecognition()
@@ -57,6 +65,9 @@ namespace AIAR.LanguageLearning.Unity.Recognition
 
             StopCoroutine(m_RecognitionLoop);
             m_RecognitionLoop = null;
+            StatusChanged?.Invoke(new RecognitionServiceStatus(
+                RecognitionServiceState.Stopped,
+                "Recognition stopped."));
         }
 
         IEnumerator RecognitionLoop()
@@ -68,7 +79,9 @@ namespace AIAR.LanguageLearning.Unity.Recognition
                     var label = m_Labels[m_CurrentIndex % m_Labels.Length];
                     var boundingBox = CreateMockBoundingBox(m_CurrentIndex);
                     m_CurrentIndex++;
-                    ObjectRecognized?.Invoke(new ObjectRecognitionResult(label, 0.95f, "mock", boundingBox));
+                    var recognition = new ObjectRecognitionResult(label, 0.95f, "mock", boundingBox);
+                    ObjectRecognitionsUpdated?.Invoke(new[] { recognition });
+                    ObjectRecognized?.Invoke(recognition);
                 }
 
                 yield return new WaitForSeconds(Mathf.Max(0.25f, m_IntervalSeconds));

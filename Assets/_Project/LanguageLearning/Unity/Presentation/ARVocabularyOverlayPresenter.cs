@@ -1,6 +1,5 @@
 using TMPro;
 using UnityEngine;
-using UnityEngine.TextCore.LowLevel;
 
 namespace AIAR.LanguageLearning.Unity.Presentation
 {
@@ -20,6 +19,11 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
         [SerializeField]
         CanvasGroup m_CanvasGroup;
+
+        public static TMP_FontAsset GetMultilingualFontAsset()
+        {
+            return MultilingualFontProvider.GetFontAsset();
+        }
 
         void Awake()
         {
@@ -75,9 +79,9 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
         static class MultilingualFontProvider
         {
-            const string LatinFontResourcePath = "Fonts/NotoSans-Regular";
-            const string DevanagariFontResourcePath = "Fonts/NotoSansDevanagari-Regular";
-            const string MalayalamFontResourcePath = "Fonts/NotoSansMalayalam-Regular";
+            const string LatinFontResourcePath = "Fonts/TMP/NotoSans-Regular SDF";
+            const string DevanagariFontResourcePath = "Fonts/TMP/NotoSansDevanagari-Regular SDF";
+            const string MalayalamFontResourcePath = "Fonts/TMP/NotoSansMalayalam-Regular SDF";
 
             static TMP_FontAsset s_FontAsset;
 
@@ -86,44 +90,33 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 if (s_FontAsset != null)
                     return s_FontAsset;
 
-                var latinFont = Resources.Load<Font>(LatinFontResourcePath);
-                if (latinFont == null)
+                s_FontAsset = Resources.Load<TMP_FontAsset>(LatinFontResourcePath);
+                if (s_FontAsset == null)
                 {
-                    Debug.LogWarning("NotoSans-Regular was not found in Resources/Fonts. Multilingual UI will use TMP default font.");
+                    Debug.LogWarning(
+                        "NotoSans-Regular SDF was not found in Resources/Fonts/TMP. " +
+                        "Multilingual UI will use the TMP default font.");
                     return null;
                 }
 
-                s_FontAsset = CreateDynamicFontAsset(latinFont);
-                s_FontAsset.name = "Runtime NotoSans Multilingual";
                 AddFallback(s_FontAsset, DevanagariFontResourcePath);
                 AddFallback(s_FontAsset, MalayalamFontResourcePath);
                 return s_FontAsset;
             }
 
-            static TMP_FontAsset CreateDynamicFontAsset(Font font)
-            {
-                return TMP_FontAsset.CreateFontAsset(
-                    font,
-                    90,
-                    9,
-                    GlyphRenderMode.SDFAA,
-                    1024,
-                    1024,
-                    AtlasPopulationMode.Dynamic,
-                    true);
-            }
-
             static void AddFallback(TMP_FontAsset fontAsset, string resourcePath)
             {
-                var font = Resources.Load<Font>(resourcePath);
-                if (font == null)
+                var fallback = Resources.Load<TMP_FontAsset>(resourcePath);
+                if (fallback == null)
                 {
-                    Debug.LogWarning($"{resourcePath} was not found in Resources. Some glyphs may be missing.");
+                    Debug.LogWarning(
+                        $"{resourcePath} was not found in Resources. Some glyphs may be missing.");
                     return;
                 }
 
-                var fallback = CreateDynamicFontAsset(font);
-                fallback.name = $"Runtime {font.name}";
+                if (fontAsset.fallbackFontAssetTable == null)
+                    fontAsset.fallbackFontAssetTable = new System.Collections.Generic.List<TMP_FontAsset>();
+
                 if (!fontAsset.fallbackFontAssetTable.Contains(fallback))
                     fontAsset.fallbackFontAssetTable.Add(fallback);
             }

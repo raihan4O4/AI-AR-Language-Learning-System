@@ -4,7 +4,10 @@
     "references": [
         "AIAR.LanguageLearning.Domain",
         "AIAR.LanguageLearning.Application",
-        "Unity.TextMeshPro"
+        "Unity.TextMeshPro",
+        "Unity.InferenceEngine",
+        "Unity.XR.ARFoundation",
+        "Unity.XR.ARSubsystems"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
