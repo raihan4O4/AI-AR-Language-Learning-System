@@ -1,7 +1,7 @@
 using AIAR.LanguageLearning.Unity.Bootstrap;
 using AIAR.LanguageLearning.Unity.Data;
+using AIAR.LanguageLearning.Unity.ObjectDetection;
 using AIAR.LanguageLearning.Unity.Presentation;
-using AIAR.LanguageLearning.Unity.Recognition;
 using NUnit.Framework;
 using Unity.InferenceEngine;
 using UnityEditor;
@@ -14,7 +14,8 @@ namespace AIAR.LanguageLearning.Tests
     public sealed class LanguageLearningUnityIntegrationTests
     {
         const string MainScenePath = "Assets/Scenes/Main.unity";
-        const string ModelPath = "Assets/_Project/LanguageLearning/ML/Models/yolov8n.onnx";
+        const string ModelPath = "Assets/_Project/LanguageLearning/ObjectDetection/Models/yolo11n_320.onnx";
+        const string LabelsPath = "Assets/_Project/LanguageLearning/ObjectDetection/Models/coco80.txt";
 
         [Test]
         public void MainScene_HasValidMvpRuntimeWiring()
@@ -25,7 +26,8 @@ namespace AIAR.LanguageLearning.Tests
             Assert.IsNotNull(Object.FindAnyObjectByType<LanguageLearningCompositionRoot>());
             Assert.IsNotNull(Object.FindAnyObjectByType<LearningSessionController>());
             Assert.IsNotNull(Object.FindAnyObjectByType<LearningMvpController>());
-            Assert.IsNotNull(Object.FindAnyObjectByType<SentisObjectRecognitionService>());
+            Assert.IsNotNull(Object.FindAnyObjectByType<RealtimeCocoObjectDetector>());
+            Assert.IsNotNull(Object.FindAnyObjectByType<PooledDetectionOverlay>(FindObjectsInactive.Include));
             Assert.IsNotNull(Object.FindAnyObjectByType<ARVocabularyOverlayPresenter>());
 
             var uiRoot = GameObject.Find("LanguageLearning UI");
@@ -35,15 +37,17 @@ namespace AIAR.LanguageLearning.Tests
                 0.0001f,
                 "The root canvas must not have the zero scale that previously made the UI invisible.");
 
-            var recognizer = Object.FindAnyObjectByType<SentisObjectRecognitionService>();
+            var recognizer = Object.FindAnyObjectByType<RealtimeCocoObjectDetector>();
             var serializedRecognizer = new SerializedObject(recognizer);
             Assert.IsNotNull(
                 serializedRecognizer.FindProperty("m_ModelAsset").objectReferenceValue,
-                "The Sentis model is not assigned.");
+                "The verified YOLO11n model is not assigned.");
+            Assert.IsNotNull(
+                serializedRecognizer.FindProperty("m_CocoLabels").objectReferenceValue,
+                "The COCO labels are not assigned.");
             Assert.AreEqual(
-                (int)SentisDetectionOutputFormat.YoloV8CenterXYWH,
-                serializedRecognizer.FindProperty("m_OutputFormat").enumValueIndex);
-            Assert.IsTrue(serializedRecognizer.FindProperty("m_ApplyCameraDisplayTransform").boolValue);
+                (int)BackendType.GPUCompute,
+                serializedRecognizer.FindProperty("m_PreferredBackend").intValue);
         }
 
         [Test]
@@ -92,7 +96,7 @@ namespace AIAR.LanguageLearning.Tests
 
             var mvp = Object.FindAnyObjectByType<LearningMvpController>();
             var session = Object.FindAnyObjectByType<LearningSessionController>();
-            var recognizer = Object.FindAnyObjectByType<SentisObjectRecognitionService>();
+            var recognizer = Object.FindAnyObjectByType<RealtimeCocoObjectDetector>();
             Assert.IsNotNull(mvp);
             Assert.IsNotNull(session);
             Assert.IsNotNull(recognizer);
@@ -128,14 +132,17 @@ namespace AIAR.LanguageLearning.Tests
             var serializedRecognizer = new SerializedObject(recognizer);
             Assert.LessOrEqual(
                 serializedRecognizer.FindProperty("m_LayersPerFrame").intValue,
-                8,
+                32,
                 "YOLO scheduling must be divided across rendered frames.");
-            Assert.GreaterOrEqual(
-                serializedRecognizer.FindProperty("m_InferenceIntervalSeconds").floatValue,
+            Assert.Greater(
+                serializedRecognizer.FindProperty("m_LayersPerFrame").intValue,
+                0);
+            Assert.LessOrEqual(
+                serializedRecognizer.FindProperty("m_MinimumInferenceInterval").floatValue,
                 0.1f,
-                "Each completed inference needs a short camera-preview recovery window.");
+                "Completed inference should promptly accept a fresh camera frame.");
             Assert.IsFalse(
-                serializedRecognizer.FindProperty("m_DebugLogging").boolValue,
+                serializedRecognizer.FindProperty("m_VerboseLogging").boolValue,
                 "Per-frame detector logging must be disabled in the device build.");
 
             var serializedSession = new SerializedObject(session);
@@ -247,8 +254,35 @@ namespace AIAR.LanguageLearning.Tests
             var model = ModelLoader.Load(modelAsset);
 
             Assert.AreEqual(1, model.inputs.Count, "The detector must have one image input.");
-            Assert.AreEqual(4, model.inputs[0].shape.rank, "The detector input must be a rank-4 image tensor.");
-            Assert.GreaterOrEqual(model.outputs.Count, 1, "The detector must expose at least one prediction output.");
+            Assert.IsTrue(model.inputs[0].shape.IsStatic());
+            Assert.AreEqual(
+                new TensorShape(1, 3, Yolo11Contract.InputHeight, Yolo11Contract.InputWidth),
+                model.inputs[0].shape.ToTensorShape());
+            Assert.AreEqual(DataType.Float, model.inputs[0].dataType);
+            Assert.AreEqual(1, model.outputs.Count, "The detector must expose one raw prediction output.");
+
+            var labels = AssetDatabase.LoadAssetAtPath<TextAsset>(LabelsPath);
+            Assert.AreEqual(Yolo11Contract.ClassCount, Yolo11Contract.ParseAndValidateLabels(labels).Length);
+        }
+
+        [Test]
+        public void YoloModel_CpuSmokeInferenceProducesVerifiedRuntimeShape()
+        {
+            var modelAsset = AssetDatabase.LoadAssetAtPath<ModelAsset>(ModelPath);
+            Assert.IsNotNull(modelAsset);
+
+            var model = ModelLoader.Load(modelAsset);
+            using var worker = new Worker(model, BackendType.CPU);
+            using var input = new Tensor<float>(
+                new TensorShape(1, 3, Yolo11Contract.InputHeight, Yolo11Contract.InputWidth));
+
+            worker.Schedule(input);
+            var output = worker.PeekOutput() as Tensor<float>;
+            Assert.IsNotNull(output);
+            using var readable = output.ReadbackAndClone();
+            Assert.AreEqual(
+                new TensorShape(1, Yolo11Contract.OutputChannels, Yolo11Contract.PredictionCount),
+                readable.shape);
         }
 
         [Test]

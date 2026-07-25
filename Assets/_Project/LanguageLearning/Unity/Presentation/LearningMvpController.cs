@@ -1009,7 +1009,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             text.color = Color.white;
             text.alignment = TextAlignmentOptions.MidlineLeft;
             text.textWrappingMode = TextWrappingModes.NoWrap;
-            text.overflowMode = TextOverflowModes.Ellipsis;
+            text.overflowMode = TextOverflowModes.Truncate;
             text.raycastTarget = false;
             if (font != null)
                 text.font = font;

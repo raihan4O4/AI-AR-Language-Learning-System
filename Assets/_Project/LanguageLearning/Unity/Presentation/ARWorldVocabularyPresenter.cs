@@ -175,7 +175,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             m_LabelText.color = Color.white;
             m_LabelText.alignment = TextAlignmentOptions.Center;
             m_LabelText.textWrappingMode = TextWrappingModes.NoWrap;
-            m_LabelText.overflowMode = TextOverflowModes.Ellipsis;
+            m_LabelText.overflowMode = TextOverflowModes.Truncate;
             m_LabelText.raycastTarget = false;
             m_LabelRoot.SetActive(false);
         }

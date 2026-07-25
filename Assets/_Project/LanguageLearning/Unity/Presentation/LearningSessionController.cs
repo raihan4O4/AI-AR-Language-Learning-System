@@ -78,7 +78,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         void Start()
         {
             SubscribeToRecognizer();
-            EnsureRecognitionBoundingBoxPresenter();
+            EnsureDetectionOverlay();
             EnsureWorldVocabularyPresenter();
             EnsureMvpController();
         }
@@ -340,9 +340,9 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             return snapshot;
         }
 
-        void EnsureRecognitionBoundingBoxPresenter()
+        void EnsureDetectionOverlay()
         {
-            if (!m_AutoCreateBoundingBoxOverlay || FindAnyObjectByType<RecognitionBoundingBoxPresenter>() != null)
+            if (!m_AutoCreateBoundingBoxOverlay || FindAnyObjectByType<PooledDetectionOverlay>() != null)
                 return;
 
             var canvas = FindAnyObjectByType<Canvas>();
@@ -365,7 +365,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 typeof(CanvasGroup),
                 typeof(Image),
                 typeof(Outline),
-                typeof(RecognitionBoundingBoxPresenter));
+                typeof(PooledDetectionOverlay));
             boxObject.transform.SetParent(canvas.transform, false);
             boxObject.transform.SetAsFirstSibling();
 
@@ -401,11 +401,11 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             labelText.color = Color.white;
             labelText.alignment = TextAlignmentOptions.Left;
             labelText.textWrappingMode = TextWrappingModes.NoWrap;
-            labelText.overflowMode = TextOverflowModes.Ellipsis;
+            labelText.overflowMode = TextOverflowModes.Truncate;
 
-            var presenter = boxObject.GetComponent<RecognitionBoundingBoxPresenter>();
+            var presenter = boxObject.GetComponent<PooledDetectionOverlay>();
             presenter.Configure(this, rectTransform, labelText, boxObject.GetComponent<CanvasGroup>());
-            LogRecognition("Created missing RecognitionBoundingBoxPresenter at runtime.");
+            LogRecognition("Created the pooled detection overlay at runtime.");
         }
 
         void EnsureMvpController()
@@ -604,7 +604,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         public bool MatchedVocabulary { get; }
     }
 
-    public sealed class RecognitionBoundingBoxPresenter : MonoBehaviour
+    public abstract class PooledDetectionOverlayBase : MonoBehaviour
     {
         [SerializeField]
         LearningSessionController m_SessionController;
@@ -633,21 +633,21 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         readonly List<BoxView> m_BoxViews = new List<BoxView>(8);
         RectTransform m_ParentRectTransform;
 
-        void Awake()
+        protected virtual void Awake()
         {
             CacheReferences();
             EnsureBoxView(0);
             HideAllBoxViews();
         }
 
-        void OnEnable()
+        protected virtual void OnEnable()
         {
             CacheReferences();
             if (m_SessionController != null)
                 m_SessionController.RecognitionsPresented += OnRecognitionsPresented;
         }
 
-        void OnDisable()
+        protected virtual void OnDisable()
         {
             if (m_SessionController != null)
                 m_SessionController.RecognitionsPresented -= OnRecognitionsPresented;
@@ -671,7 +671,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
             if (m_ParentRectTransform == null)
             {
-                Debug.LogWarning("[RecognitionBoundingBoxPresenter] Cannot render detection boxes because the presenter is missing a parent RectTransform.");
+                Debug.LogWarning("[PooledDetectionOverlay] Cannot render detection boxes because the overlay is missing a parent RectTransform.");
                 HideAllBoxViews();
                 return;
             }
@@ -679,7 +679,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             var parentSize = m_ParentRectTransform.rect.size;
             if (parentSize.x <= 0f || parentSize.y <= 0f)
             {
-                Debug.LogWarning($"[RecognitionBoundingBoxPresenter] Cannot render detection boxes because the parent size is {parentSize.x:0.0}x{parentSize.y:0.0}.");
+                Debug.LogWarning($"[PooledDetectionOverlay] Cannot render detection boxes because the parent size is {parentSize.x:0.0}x{parentSize.y:0.0}.");
                 HideAllBoxViews();
                 return;
             }
@@ -704,7 +704,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
             if (renderedCount == 0)
             {
-                Debug.LogWarning("[RecognitionBoundingBoxPresenter] Detection results arrived, but none had a valid bounding box.");
+                Debug.LogWarning("[PooledDetectionOverlay] Detection results arrived, but none had a valid bounding box.");
                 return;
             }
 
@@ -771,7 +771,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         void LogDebug(string message)
         {
             if (m_DebugLogging)
-                Debug.Log($"[RecognitionBoundingBoxPresenter] {message}");
+                Debug.Log($"[PooledDetectionOverlay] {message}");
         }
 
         BoxView EnsureBoxView(int index)
@@ -895,7 +895,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 labelText.color = Color.white;
                 labelText.alignment = TextAlignmentOptions.Left;
                 labelText.textWrappingMode = TextWrappingModes.NoWrap;
-                labelText.overflowMode = TextOverflowModes.Ellipsis;
+                labelText.overflowMode = TextOverflowModes.Truncate;
             }
 
             labelText.raycastTarget = false;

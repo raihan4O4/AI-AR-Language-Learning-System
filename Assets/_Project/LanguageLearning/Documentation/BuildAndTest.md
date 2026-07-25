@@ -4,9 +4,11 @@
 
 - `Assets/Scenes/Main.unity` is the build scene.
 - The scene contains the existing AR Session / XR Origin plus the language-learning runtime.
-- `yolov8n.onnx` is bundled under `Assets/_Project/LanguageLearning/ML/Models/`, imports as a Unity model asset, and is assigned to `SentisObjectRecognitionService`.
-- Recognition results include normalized bounding boxes. Sentis publishes only model predictions or an empty detection set; the mock recognizer is limited to intentional Editor/demo use.
-- Detector input uses asynchronous RGB24 conversion; YOLO work is layer-budgeted across rendered frames, followed by asynchronous readback, non-maximum suppression, camera display-coordinate conversion, and temporal stabilization.
+- The verified `yolo11n_320.onnx` is bundled under `ObjectDetection/Models`, imports as a Unity model asset, and is assigned to `RealtimeCocoObjectDetector`.
+- Recognition results include normalized bounding boxes. Production has no mock detector or silent fallback.
+- Detector input is generated entirely on the GPU from AR Foundation's display-oriented camera
+  background; YOLO work is layer-budgeted across rendered frames, followed by asynchronous readback,
+  explicit `[1,84,2100]` decoding, class-aware NMS, and temporal stabilization.
 - The overlay supports English, Hindi, Malayalam, and French.
 - Pre-generated Noto TextMeshPro assets are bundled under `Resources/Fonts/TMP`, with persisted
   Devanagari and Malayalam fallbacks. No transient font assets are created during startup or builds.
@@ -42,8 +44,8 @@ The menu command reruns the scene setup first, then starts a development Android
 4. Confirm that the Home screen appears without a session-subsystem startup error.
 5. Tap `Scan`; confirm the permission prompt appears and the live camera opens.
 6. Move the phone until AR tracking starts.
-7. Point at COCO objects such as book, bottle, chair, cup, laptop, cell phone, apple, or banana;
-   labels and boxes should come only from Sentis model predictions.
+7. Point at COCO objects such as person, backpack, bottle, cup, chair, laptop, mouse, keyboard,
+   cell phone, or book; labels and boxes should come only from YOLO11 predictions.
 8. Tap `Speak` to test Android Text-to-Speech.
 9. Tap `EN`, `HI`, `ML`, or `FR` to switch the learning language, then use Back to return Home.
 10. Open `Quiz`, select each language, answer a question, tap Next, and confirm the prompt changes.
@@ -64,7 +66,7 @@ Run the EditMode suite from Unity Test Runner. It covers:
 - quiz-language selection and non-repeating question sequences;
 - deferred AR startup and Android XR provider configuration;
 - missing scene-script detection;
-- imported YOLO input/output contract;
+- exact YOLO input/output contract, CPU inference smoke execution, letterbox inversion, decoder, and NMS;
 - Latin, Devanagari, and Malayalam font atlases/fallbacks;
 - a project-wide guard against null TextMeshPro atlas references.
 
@@ -73,9 +75,12 @@ EditMode test, and Editor projects. Imported XR sample warnings are external sam
 
 Latest clean validation (Unity 6000.4.11f1):
 
-- EditMode: 17 passed, 0 failed, 0 skipped.
+- EditMode: 24 passed, 0 failed, 0 skipped.
 - Android development build: succeeded with IL2CPP and ARM64.
-- APK: `Builds/Android/AIARLanguageLearning-debug.apk`.
+- APK: `Builds/Android/AIARLanguageLearning-debug.apk` (213,787,131 bytes).
+- APK SHA-256: `EB3F658CEF87D6A1019D749081E88AB3FDA67CC426B683C332EA25D188A5F471`.
+- APK signature: valid Android APK Signature Scheme v2 debug signature.
+- YOLO11n model SHA-256: `3FE015B910BC39E650E91607E22F3D30BAA7038ACBD8279F7EA729E74A1BDCFC`.
 - Package: `com.raihan.aiarlanguagelearning`, min SDK 25, target SDK 36.
 - Required manifest capabilities: camera, AR camera/depth, portrait orientation.
 

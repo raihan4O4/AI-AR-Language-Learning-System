@@ -3,8 +3,8 @@ using System.IO;
 using AIAR.LanguageLearning.Domain;
 using AIAR.LanguageLearning.Unity.Bootstrap;
 using AIAR.LanguageLearning.Unity.Data;
+using AIAR.LanguageLearning.Unity.ObjectDetection;
 using AIAR.LanguageLearning.Unity.Presentation;
-using AIAR.LanguageLearning.Unity.Recognition;
 using AIAR.LanguageLearning.Unity.Speech;
 using TMPro;
 using Unity.InferenceEngine;
@@ -26,10 +26,12 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
     [InitializeOnLoad]
     public static class LanguageLearningSceneSetup
     {
+        // Keep scene generation deterministic so stale detector components cannot survive a rebuild.
         const string MainScenePath = "Assets/Scenes/Main.unity";
         const string CatalogPath = "Assets/_Project/LanguageLearning/Content/Resources/Vocabulary/vocabulary_catalog.json";
-        const string ModelDirectoryPath = "Assets/_Project/LanguageLearning/ML/Models";
-        const string CocoLabelsPath = ModelDirectoryPath + "/coco_labels.txt";
+        const string ModelDirectoryPath = "Assets/_Project/LanguageLearning/ObjectDetection/Models";
+        const string Yolo11ModelPath = ModelDirectoryPath + "/yolo11n_320.onnx";
+        const string CocoLabelsPath = ModelDirectoryPath + "/coco80.txt";
         const string PendingSetupPath = "Assets/_Project/LanguageLearning/Editor/SceneSetup/PENDING_MAIN_SCENE_SETUP.txt";
         const string SetupReportPath = "Logs/language-learning-scene-setup.log";
         const string FontAssetDirectory = "Assets/_Project/LanguageLearning/Content/Resources/Fonts/TMP";
@@ -39,22 +41,6 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
         const string NotoSansTmpPath = FontAssetDirectory + "/NotoSans-Regular SDF.asset";
         const string NotoSansDevanagariTmpPath = FontAssetDirectory + "/NotoSansDevanagari-Regular SDF.asset";
         const string NotoSansMalayalamTmpPath = FontAssetDirectory + "/NotoSansMalayalam-Regular SDF.asset";
-
-        static readonly string[] MockLabels =
-        {
-            "book",
-            "bottle",
-            "chair",
-            "table",
-            "laptop",
-            "phone",
-            "cup",
-            "pen",
-            "bag",
-            "apple",
-            "banana",
-            "flower"
-        };
 
         static LanguageLearningSceneSetup()
         {
@@ -67,10 +53,10 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
             SetupMainScene();
         }
 
-        [MenuItem("AI-AR Language Learning/Use Sentis Detector In Main Scene")]
-        public static void UseSentisDetectorInMainScene()
+        [MenuItem("AI-AR Language Learning/Configure Rebuilt YOLO11 Detector")]
+        public static void ConfigureRebuiltYolo11Detector()
         {
-            SetupMainScene(useSentisWhenAvailable: true, requireSentisModel: true);
+            SetupMainScene();
         }
 
         public static void RunFromCommandLine()
@@ -126,37 +112,36 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
             }
         }
 
-        static void SetupMainScene(bool useSentisWhenAvailable = true, bool requireSentisModel = false)
+        static void SetupMainScene()
         {
             var scene = OpenMainScene();
 
             ConfigureBuildSettings();
             ConfigureAndroidPlayerSettings();
             var uiFont = EnsureMultilingualFontAsset();
-            var sentisModel = FindFirstSentisModelAsset();
+            var sentisModel = AssetDatabase.LoadAssetAtPath<ModelAsset>(Yolo11ModelPath);
             var cocoLabels = AssetDatabase.LoadAssetAtPath<TextAsset>(CocoLabelsPath);
 
-            if (requireSentisModel && sentisModel == null)
-                throw new InvalidOperationException($"No Sentis/ONNX ModelAsset found in {ModelDirectoryPath}. Add a .onnx model there, let Unity import it, then run this menu again.");
+            if (sentisModel == null)
+            {
+                throw new InvalidOperationException(
+                    $"The verified YOLO11n model did not import as a ModelAsset at {Yolo11ModelPath}.");
+            }
+
+            if (cocoLabels == null)
+                throw new InvalidOperationException($"The COCO label asset is missing at {CocoLabelsPath}.");
 
             var runtimeRoot = RecreateRoot("LanguageLearning Runtime");
             var repository = runtimeRoot.AddComponent<ResourcesVocabularyRepository>();
-            var mockRecognition = runtimeRoot.AddComponent<MockObjectRecognitionService>();
-            var sentisRecognition = runtimeRoot.AddComponent<SentisObjectRecognitionService>();
+            var objectDetector = runtimeRoot.AddComponent<RealtimeCocoObjectDetector>();
             var tts = runtimeRoot.AddComponent<AndroidTextToSpeechService>();
             var compositionRoot = runtimeRoot.AddComponent<LanguageLearningCompositionRoot>();
             var sessionController = runtimeRoot.AddComponent<LearningSessionController>();
             var mvpController = runtimeRoot.AddComponent<LearningMvpController>();
-            var activeRecognition = useSentisWhenAvailable && sentisModel != null
-                ? (MonoBehaviour)sentisRecognition
-                : mockRecognition;
 
             ConfigureRepository(repository);
-            ConfigureMockRecognition(mockRecognition);
-            ConfigureSentisRecognition(sentisRecognition, sentisModel, cocoLabels);
-            mockRecognition.enabled = activeRecognition == mockRecognition;
-            sentisRecognition.enabled = activeRecognition == sentisRecognition;
-            ConfigureCompositionRoot(compositionRoot, repository, activeRecognition, tts);
+            ConfigureObjectDetector(objectDetector, sentisModel, cocoLabels);
+            ConfigureCompositionRoot(compositionRoot, repository, objectDetector, tts);
             ConfigureSessionController(sessionController, compositionRoot);
             ConfigureMvpController(mvpController, sessionController, compositionRoot);
             ConfigureArScanLifecycle();
@@ -173,8 +158,8 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
                 "Language learning Main scene setup complete.\n" +
                 "- Main scene added to Build Settings.\n" +
                 "- Android package/settings prepared for APK builds.\n" +
-                $"- Runtime composition root, {(activeRecognition == sentisRecognition ? "Sentis recognizer" : "mock recognizer")}, TTS adapter, and vocabulary repository added.\n" +
-                "- Sentis detector auto-wiring checks ML/Models for imported ModelAssets.\n" +
+                "- Runtime composition root, verified YOLO11n detector, TTS adapter, and vocabulary repository added.\n" +
+                "- Detector contract: RGB float32 NCHW [1,3,320,320] to [1,84,2100], class-aware NMS.\n" +
                 "- AR camera components remain off until the learner opens Scan.\n" +
                 "- Screen-space vocabulary overlay and language/speech buttons added.\n" +
                 "- Existing AR Session and XR Origin were preserved.");
@@ -225,23 +210,6 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel25;
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
             EditorUserBuildSettings.buildAppBundle = false;
-        }
-
-        static ModelAsset FindFirstSentisModelAsset()
-        {
-            if (!Directory.Exists(ModelDirectoryPath))
-                return null;
-
-            var modelGuids = AssetDatabase.FindAssets("t:ModelAsset", new[] { ModelDirectoryPath });
-            for (var index = 0; index < modelGuids.Length; index++)
-            {
-                var modelPath = AssetDatabase.GUIDToAssetPath(modelGuids[index]);
-                var modelAsset = AssetDatabase.LoadAssetAtPath<ModelAsset>(modelPath);
-                if (modelAsset != null)
-                    return modelAsset;
-            }
-
-            return null;
         }
 
         static TMP_FontAsset EnsureMultilingualFontAsset()
@@ -382,43 +350,23 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        static void ConfigureMockRecognition(MockObjectRecognitionService mockRecognition)
-        {
-            var serializedObject = new SerializedObject(mockRecognition);
-            var labels = serializedObject.FindProperty("m_Labels");
-            labels.arraySize = MockLabels.Length;
-
-            for (var index = 0; index < MockLabels.Length; index++)
-                labels.GetArrayElementAtIndex(index).stringValue = MockLabels[index];
-
-            serializedObject.FindProperty("m_IntervalSeconds").floatValue = 2.5f;
-            serializedObject.FindProperty("m_StartOnEnable").boolValue = false;
-            serializedObject.ApplyModifiedPropertiesWithoutUndo();
-        }
-
-        static void ConfigureSentisRecognition(
-            SentisObjectRecognitionService sentisRecognition,
+        static void ConfigureObjectDetector(
+            RealtimeCocoObjectDetector objectDetector,
             ModelAsset modelAsset,
             TextAsset labelAsset)
         {
-            var serializedObject = new SerializedObject(sentisRecognition);
+            var serializedObject = new SerializedObject(objectDetector);
             serializedObject.FindProperty("m_CameraManager").objectReferenceValue = UnityEngine.Object.FindAnyObjectByType<ARCameraManager>();
+            serializedObject.FindProperty("m_CameraBackground").objectReferenceValue = UnityEngine.Object.FindAnyObjectByType<ARCameraBackground>();
             serializedObject.FindProperty("m_ModelAsset").objectReferenceValue = modelAsset;
-            serializedObject.FindProperty("m_LabelAsset").objectReferenceValue = labelAsset;
-            serializedObject.FindProperty("m_Backend").intValue = (int)BackendType.GPUCompute;
-            serializedObject.FindProperty("m_InputLayout").enumValueIndex = (int)TensorLayout.NCHW;
-            serializedObject.FindProperty("m_OutputFormat").enumValueIndex = (int)SentisDetectionOutputFormat.YoloV8CenterXYWH;
-            serializedObject.FindProperty("m_ImageTransformation").intValue = (int)UnityEngine.XR.ARSubsystems.XRCpuImage.Transformation.MirrorY;
-            serializedObject.FindProperty("m_PreserveAspectRatio").boolValue = true;
-            serializedObject.FindProperty("m_ApplyCameraDisplayTransform").boolValue = true;
-            serializedObject.FindProperty("m_InputWidth").intValue = 640;
-            serializedObject.FindProperty("m_InputHeight").intValue = 640;
-            serializedObject.FindProperty("m_ConfidenceThreshold").floatValue = 0.35f;
-            serializedObject.FindProperty("m_NmsThreshold").floatValue = 0.45f;
-            serializedObject.FindProperty("m_InferenceIntervalSeconds").floatValue = 0.2f;
-            serializedObject.FindProperty("m_LayersPerFrame").intValue = 6;
-            serializedObject.FindProperty("m_MaxDetections").intValue = 8;
-            serializedObject.FindProperty("m_DebugLogging").boolValue = false;
+            serializedObject.FindProperty("m_CocoLabels").objectReferenceValue = labelAsset;
+            serializedObject.FindProperty("m_PreferredBackend").intValue = (int)BackendType.GPUCompute;
+            serializedObject.FindProperty("m_ConfidenceThreshold").floatValue = 0.30f;
+            serializedObject.FindProperty("m_IouThreshold").floatValue = 0.45f;
+            serializedObject.FindProperty("m_MaxDetections").intValue = 10;
+            serializedObject.FindProperty("m_LayersPerFrame").intValue = 16;
+            serializedObject.FindProperty("m_MinimumInferenceInterval").floatValue = 0.05f;
+            serializedObject.FindProperty("m_VerboseLogging").boolValue = false;
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
 
@@ -539,7 +487,7 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
                 typeof(CanvasGroup),
                 typeof(Image),
                 typeof(Outline),
-                typeof(RecognitionBoundingBoxPresenter));
+                typeof(PooledDetectionOverlay));
             boxObject.transform.SetParent(parent, false);
 
             var rectTransform = boxObject.GetComponent<RectTransform>();
@@ -574,11 +522,11 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
             labelText.color = Color.white;
             labelText.alignment = TextAlignmentOptions.Left;
             labelText.textWrappingMode = TextWrappingModes.NoWrap;
-            labelText.overflowMode = TextOverflowModes.Ellipsis;
+            labelText.overflowMode = TextOverflowModes.Truncate;
             if (fontAsset != null)
                 labelText.font = fontAsset;
 
-            var presenter = boxObject.GetComponent<RecognitionBoundingBoxPresenter>();
+            var presenter = boxObject.GetComponent<PooledDetectionOverlay>();
             var serializedObject = new SerializedObject(presenter);
             serializedObject.FindProperty("m_SessionController").objectReferenceValue = sessionController;
             serializedObject.FindProperty("m_BoxRectTransform").objectReferenceValue = rectTransform;
@@ -633,7 +581,7 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
             textComponent.alignment = alignment;
             textComponent.color = Color.white;
             textComponent.textWrappingMode = TextWrappingModes.NoWrap;
-            textComponent.overflowMode = TextOverflowModes.Ellipsis;
+            textComponent.overflowMode = TextOverflowModes.Truncate;
             if (fontAsset != null)
                 textComponent.font = fontAsset;
 

@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "model": "Ultralytics YOLO11n COCO detection",
+  "source_weights": "yolo11n.pt",
+  "source_documentation": "https://docs.ultralytics.com/models/yolo11/",
+  "license": "AGPL-3.0-or-later or Ultralytics Enterprise",
+  "exported_utc": "2026-07-25T06:28:08.340884+00:00",
+  "ultralytics_version": "8.4.87",
+  "onnx_opset": 12,
+  "sha256": "3FE015B910BC39E650E91607E22F3D30BAA7038ACBD8279F7EA729E74A1BDCFC",
+  "inputs": [
+    {
+      "name": "images",
+      "element_type": "FLOAT",
+      "shape": [
+        1,
+        3,
+        320,
+        320
+      ]
+    }
+  ],
+  "outputs": [
+    {
+      "name": "output0",
+      "element_type": "FLOAT",
+      "shape": [
+        1,
+        84,
+        2100
+      ]
+    }
+  ],
+  "preprocessing": {
+    "color_order": "RGB",
+    "tensor_layout": "NCHW",
+    "normalization": "float32 pixel / 255.0",
+    "resize": "bilinear letterbox",
+    "letterbox_value": 114,
+    "input_width": 320,
+    "input_height": 320
+  },
+  "postprocessing": {
+    "output_layout": "NCHW-like [batch, 4 + class_count, prediction_count]",
+    "box_encoding": "center_x, center_y, width, height in model pixels",
+    "class_encoding": "80 independent class scores; no objectness channel",
+    "nms_in_model": false
+  },
+  "validation": {
+    "image_url": "https://ultralytics.com/images/bus.jpg",
+    "image_sha256": "C02019C4979C191EB739DDD944445EF408DAD5679ACAB6FD520EF9D434BFBC63",
+    "letterbox": {
+      "source_width": 810,
+      "source_height": 1080,
+      "content_width": 240,
+      "content_height": 320,
+      "pad_x": 40,
+      "pad_y": 0,
+      "scale": 0.2962962962962963
+    },
+    "output_shape": [
+      1,
+      84,
+      2100
+    ],
+    "detections": [
+      {
+        "class_id": 5,
+        "label": "bus",
+        "confidence": 0.859542,
+        "model_xyxy": [
+          45.919,
+          68.142,
+          278.907,
+          218.277
+        ]
+      },
+      {
+        "class_id": 0,
+        "label": "person",
+        "confidence": 0.84337,
+        "model_xyxy": [
+          54.445,
+          116.702,
+          112.459,
+          269.266
+        ]
+      },
+      {
+        "class_id": 0,
+        "label": "person",
+        "confidence": 0.80643,
+        "model_xyxy": [
+          104.972,
+          118.495,
+          142.172,
+          252.264
+        ]
+      },
+      {
+        "class_id": 0,
+        "label": "person",
+        "confidence": 0.786615,
+        "model_xyxy": [
+          238.274,
+          112.696,
+          279.834,
+          258.89
+        ]
+      },
+      {
+        "class_id": 0,
+        "label": "person",
+        "confidence": 0.276632,
+        "model_xyxy": [
+          40.12,
+          173.76,
+          64.122,
+          256.353
+        ]
+      }
+    ]
+  }
+}
