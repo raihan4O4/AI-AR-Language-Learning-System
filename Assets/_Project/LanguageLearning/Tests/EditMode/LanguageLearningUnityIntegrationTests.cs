@@ -1,3 +1,4 @@
+using AIAR.LanguageLearning.Application.Models;
 using AIAR.LanguageLearning.Unity.Bootstrap;
 using AIAR.LanguageLearning.Unity.Data;
 using AIAR.LanguageLearning.Unity.ObjectDetection;
@@ -154,6 +155,112 @@ namespace AIAR.LanguageLearning.Tests
                 serializedSession.FindProperty("m_DetectionHoldSeconds").floatValue,
                 1f,
                 "The overlay must survive the interval between mobile inference results.");
+        }
+
+        [Test]
+        public void MainScene_BottomTitleUpdatesForEverySupportedLanguage()
+        {
+            EditorSceneManager.OpenScene(MainScenePath, OpenSceneMode.Single);
+
+            var session = Object.FindAnyObjectByType<LearningSessionController>();
+            var repository = Object.FindAnyObjectByType<ResourcesVocabularyRepository>();
+            var presenter = Object.FindAnyObjectByType<ARVocabularyOverlayPresenter>();
+            Assert.IsNotNull(session);
+            Assert.IsNotNull(repository);
+            Assert.IsNotNull(presenter);
+
+            var presenterObject = new SerializedObject(presenter);
+            Assert.AreEqual(
+                session,
+                presenterObject.FindProperty("m_SessionController").objectReferenceValue,
+                "The bottom title must subscribe directly to the active learning session.");
+            var translatedWordText = (TMPro.TMP_Text)presenterObject
+                .FindProperty("m_TranslatedWordText")
+                .objectReferenceValue;
+            Assert.IsNotNull(translatedWordText);
+
+            typeof(ARVocabularyOverlayPresenter)
+                .GetMethod("SubscribeToSession", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                ?.Invoke(presenter, null);
+
+            Assert.IsTrue(repository.TryGetById("book", out var entry));
+            var publishVocabulary = typeof(LearningSessionController).GetMethod(
+                "PublishVocabulary",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.IsNotNull(publishVocabulary);
+            publishVocabulary.Invoke(
+                session,
+                new object[]
+                {
+                    entry,
+                    "book",
+                    0.9f,
+                    NormalizedBoundingBox.Centered(0.5f, 0.5f),
+                    false
+                });
+
+            foreach (Domain.LanguageCode language in System.Enum.GetValues(typeof(Domain.LanguageCode)))
+            {
+                session.SetLearningLanguage((int)language);
+                var expected = entry.GetRequiredTranslation(language);
+
+                Assert.AreEqual(
+                    expected.Text,
+                    translatedWordText.text,
+                    $"The bottom title did not refresh for {language}.");
+                Assert.IsFalse(
+                    string.IsNullOrWhiteSpace(translatedWordText.text),
+                    $"The bottom title is blank for {language}.");
+                Assert.IsNotNull(translatedWordText.font, $"The bottom title has no font for {language}.");
+
+                var expectedFontName = language switch
+                {
+                    Domain.LanguageCode.Hindi => "NotoSansDevanagari-Regular SDF",
+                    Domain.LanguageCode.Malayalam => "NotoSansMalayalam-Regular SDF",
+                    _ => "NotoSans-Regular SDF"
+                };
+                Assert.AreEqual(expectedFontName, translatedWordText.font.name);
+            }
+        }
+
+        [Test]
+        public void MainScene_DetectionBoxesUseOutlineOnlyGraphics()
+        {
+            EditorSceneManager.OpenScene(MainScenePath, OpenSceneMode.Single);
+
+            var session = Object.FindAnyObjectByType<LearningSessionController>();
+            var overlay = Object.FindAnyObjectByType<PooledDetectionOverlay>(FindObjectsInactive.Include);
+            Assert.IsNotNull(session);
+            Assert.IsNotNull(overlay);
+
+            var serializedOverlay = new SerializedObject(overlay);
+            var boxRect = (RectTransform)serializedOverlay.FindProperty("m_BoxRectTransform").objectReferenceValue;
+            var labelText = (TMPro.TMP_Text)serializedOverlay.FindProperty("m_LabelText").objectReferenceValue;
+            var canvasGroup = (CanvasGroup)serializedOverlay.FindProperty("m_CanvasGroup").objectReferenceValue;
+            overlay.Configure(session, boxRect, labelText, canvasGroup);
+
+            var background = boxRect.GetComponent<Image>();
+            Assert.IsNotNull(background);
+            Assert.IsFalse(background.enabled, "The detection box background graphic must stay disabled.");
+            Assert.AreEqual(0f, background.color.a, 0.0001f, "The detection box interior must be transparent.");
+
+            var legacyOutline = boxRect.GetComponent<Outline>();
+            Assert.IsTrue(
+                legacyOutline == null || !legacyOutline.enabled,
+                "The filled UI Outline effect must not render the detection box.");
+
+            var border = boxRect.Find("Detection Border");
+            Assert.IsNotNull(border, "The four-edge detection border was not created.");
+            Assert.AreEqual(4, border.childCount);
+            foreach (var edgeName in new[] { "Top", "Bottom", "Left", "Right" })
+            {
+                var edge = border.Find(edgeName);
+                Assert.IsNotNull(edge, $"The {edgeName} border edge is missing.");
+                var edgeImage = edge.GetComponent<Image>();
+                Assert.IsNotNull(edgeImage);
+                Assert.Greater(edgeImage.color.a, 0.99f);
+                Assert.IsFalse(edgeImage.raycastTarget);
+            }
         }
 
         [Test]

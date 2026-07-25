@@ -75,10 +75,10 @@ EditMode test, and Editor projects. Imported XR sample warnings are external sam
 
 Latest clean validation (Unity 6000.4.11f1):
 
-- EditMode: 24 passed, 0 failed, 0 skipped.
+- EditMode: 26 passed, 0 failed, 0 skipped.
 - Android development build: succeeded with IL2CPP and ARM64.
-- APK: `Builds/Android/AIARLanguageLearning-debug.apk` (213,787,131 bytes).
-- APK SHA-256: `EB3F658CEF87D6A1019D749081E88AB3FDA67CC426B683C332EA25D188A5F471`.
+- APK: `Builds/Android/AIARLanguageLearning-debug.apk` (213,797,976 bytes).
+- APK SHA-256: `0BBE7A27148989DFB4E7E43EE6594036D0A5772144F36CB59BCA3029F98E42CC`.
 - APK signature: valid Android APK Signature Scheme v2 debug signature.
 - YOLO11n model SHA-256: `3FE015B910BC39E650E91607E22F3D30BAA7038ACBD8279F7EA729E74A1BDCFC`.
 - Package: `com.raihan.aiarlanguagelearning`, min SDK 25, target SDK 36.

@@ -57,6 +57,8 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
         public event Action<IReadOnlyList<RecognitionPresentation>> RecognitionsPresented;
 
+        public event Action<string, string, string, string> VocabularyPresented;
+
         public VocabularyDetectedEvent onVocabularyDetected => m_OnVocabularyDetected;
 
         public VocabularyMissedEvent onVocabularyMissed => m_OnVocabularyMissed;
@@ -301,6 +303,11 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 english,
                 translation.PhoneticHint,
                 translation.Language.ToDisplayName());
+            VocabularyPresented?.Invoke(
+                translation.Text,
+                english,
+                translation.PhoneticHint,
+                translation.Language.ToDisplayName());
 
             if (publishRecognitionPresentation)
             {
@@ -364,7 +371,6 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 typeof(RectTransform),
                 typeof(CanvasGroup),
                 typeof(Image),
-                typeof(Outline),
                 typeof(PooledDetectionOverlay));
             boxObject.transform.SetParent(canvas.transform, false);
             boxObject.transform.SetAsFirstSibling();
@@ -377,12 +383,8 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             rectTransform.sizeDelta = new Vector2(360f, 260f);
 
             var image = boxObject.GetComponent<Image>();
-            image.color = new Color(0.07f, 0.88f, 0.48f, 0.12f);
+            image.color = Color.clear;
             image.raycastTarget = false;
-
-            var outline = boxObject.GetComponent<Outline>();
-            outline.effectColor = new Color(0.07f, 0.88f, 0.48f, 1f);
-            outline.effectDistance = new Vector2(3f, -3f);
 
             var labelObject = new GameObject("Detection Label", typeof(RectTransform), typeof(TextMeshProUGUI));
             labelObject.transform.SetParent(boxObject.transform, false);
@@ -628,6 +630,12 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         float m_MinimumBoxHeight = 64f;
 
         [SerializeField]
+        Color m_BorderColor = new Color(0.07f, 0.88f, 0.48f, 1f);
+
+        [SerializeField, Min(1f)]
+        float m_BorderThickness = 3f;
+
+        [SerializeField]
         bool m_DebugLogging;
 
         readonly List<BoxView> m_BoxViews = new List<BoxView>(8);
@@ -803,12 +811,16 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             if (m_BoxRectTransform == null)
                 return null;
 
+            var image = m_BoxRectTransform.GetComponent<Image>();
+            var outline = m_BoxRectTransform.GetComponent<Outline>();
+            var borderRoot = EnsureOutlineOnlyAppearance(m_BoxRectTransform, image, outline);
             return new BoxView(
                 m_BoxRectTransform,
                 m_LabelText,
                 m_CanvasGroup,
-                m_BoxRectTransform.GetComponent<Image>(),
-                m_BoxRectTransform.GetComponent<Outline>());
+                image,
+                outline,
+                borderRoot);
         }
 
         BoxView CreateAdditionalBoxView(BoxView template)
@@ -820,8 +832,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 $"Recognition Bounding Box {m_BoxViews.Count + 1}",
                 typeof(RectTransform),
                 typeof(CanvasGroup),
-                typeof(Image),
-                typeof(Outline));
+                typeof(Image));
             boxObject.transform.SetParent(m_ParentRectTransform, false);
             boxObject.transform.SetAsFirstSibling();
 
@@ -833,24 +844,84 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             rectTransform.sizeDelta = template.RectTransform.sizeDelta;
 
             var image = boxObject.GetComponent<Image>();
-            image.color = template.Image != null ? template.Image.color : new Color(0.07f, 0.88f, 0.48f, 0.12f);
             image.raycastTarget = false;
 
-            var outline = boxObject.GetComponent<Outline>();
-            if (template.Outline != null)
+            var labelText = CreateLabelText(boxObject.transform, template.LabelText);
+            var borderRoot = EnsureOutlineOnlyAppearance(rectTransform, image, null);
+            return new BoxView(
+                rectTransform,
+                labelText,
+                boxObject.GetComponent<CanvasGroup>(),
+                image,
+                null,
+                borderRoot);
+        }
+
+        RectTransform EnsureOutlineOnlyAppearance(
+            RectTransform boxRectTransform,
+            Image backgroundImage,
+            Outline legacyOutline)
+        {
+            if (backgroundImage != null)
             {
-                outline.effectColor = template.Outline.effectColor;
-                outline.effectDistance = template.Outline.effectDistance;
-                outline.useGraphicAlpha = template.Outline.useGraphicAlpha;
+                backgroundImage.color = Color.clear;
+                backgroundImage.raycastTarget = false;
+                backgroundImage.enabled = false;
+            }
+
+            if (legacyOutline != null)
+                legacyOutline.enabled = false;
+
+            var borderTransform = boxRectTransform.Find("Detection Border") as RectTransform;
+            if (borderTransform == null)
+            {
+                var borderObject = new GameObject("Detection Border", typeof(RectTransform));
+                borderObject.transform.SetParent(boxRectTransform, false);
+                borderObject.transform.SetAsFirstSibling();
+                borderTransform = borderObject.GetComponent<RectTransform>();
+            }
+
+            borderTransform.anchorMin = Vector2.zero;
+            borderTransform.anchorMax = Vector2.one;
+            borderTransform.offsetMin = Vector2.zero;
+            borderTransform.offsetMax = Vector2.zero;
+
+            ConfigureBorderEdge(borderTransform, "Top", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, m_BorderThickness));
+            ConfigureBorderEdge(borderTransform, "Bottom", new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, m_BorderThickness));
+            ConfigureBorderEdge(borderTransform, "Left", new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(0f, 0.5f), new Vector2(m_BorderThickness, 0f));
+            ConfigureBorderEdge(borderTransform, "Right", new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(1f, 0.5f), new Vector2(m_BorderThickness, 0f));
+            return borderTransform;
+        }
+
+        void ConfigureBorderEdge(
+            RectTransform parent,
+            string name,
+            Vector2 anchorMin,
+            Vector2 anchorMax,
+            Vector2 pivot,
+            Vector2 sizeDelta)
+        {
+            var edgeTransform = parent.Find(name) as RectTransform;
+            Image edgeImage;
+            if (edgeTransform == null)
+            {
+                var edgeObject = new GameObject(name, typeof(RectTransform), typeof(Image));
+                edgeObject.transform.SetParent(parent, false);
+                edgeTransform = edgeObject.GetComponent<RectTransform>();
+                edgeImage = edgeObject.GetComponent<Image>();
             }
             else
             {
-                outline.effectColor = new Color(0.07f, 0.88f, 0.48f, 1f);
-                outline.effectDistance = new Vector2(3f, -3f);
+                edgeImage = edgeTransform.GetComponent<Image>() ?? edgeTransform.gameObject.AddComponent<Image>();
             }
 
-            var labelText = CreateLabelText(boxObject.transform, template.LabelText);
-            return new BoxView(rectTransform, labelText, boxObject.GetComponent<CanvasGroup>(), image, outline);
+            edgeTransform.anchorMin = anchorMin;
+            edgeTransform.anchorMax = anchorMax;
+            edgeTransform.pivot = pivot;
+            edgeTransform.anchoredPosition = Vector2.zero;
+            edgeTransform.sizeDelta = sizeDelta;
+            edgeImage.color = m_BorderColor;
+            edgeImage.raycastTarget = false;
         }
 
         TMP_Text CreateLabelText(Transform parent, TMP_Text template)
@@ -942,11 +1013,8 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 boxView.CanvasGroup.interactable = false;
             }
 
-            if (boxView.Image != null)
-                boxView.Image.enabled = visible;
-
-            if (boxView.Outline != null)
-                boxView.Outline.enabled = visible;
+            if (boxView.BorderRoot != null)
+                boxView.BorderRoot.gameObject.SetActive(visible);
 
             if (boxView.LabelText != null)
                 boxView.LabelText.enabled = visible;
@@ -959,13 +1027,15 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 TMP_Text labelText,
                 CanvasGroup canvasGroup,
                 Image image,
-                Outline outline)
+                Outline outline,
+                RectTransform borderRoot)
             {
                 RectTransform = rectTransform;
                 LabelText = labelText;
                 CanvasGroup = canvasGroup;
                 Image = image;
                 Outline = outline;
+                BorderRoot = borderRoot;
             }
 
             public RectTransform RectTransform { get; }
@@ -977,6 +1047,8 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             public Image Image { get; }
 
             public Outline Outline { get; }
+
+            public RectTransform BorderRoot { get; }
         }
     }
 }

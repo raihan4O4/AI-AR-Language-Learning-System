@@ -11,7 +11,6 @@ using Unity.InferenceEngine;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
-using UnityEditor.Events;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -148,7 +147,6 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
 
             EnsureEventSystem();
             var presenter = CreateLanguageLearningUi(sessionController, uiFont);
-            UnityEventTools.AddPersistentListener(sessionController.onVocabularyDetected, presenter.ShowVocabulary);
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
@@ -466,6 +464,7 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
             var phoneticText = CreateText(panel.transform, "Phonetic Hint", "kitaab", 28f, FontStyles.Italic, TextAlignmentOptions.Left, fontAsset);
 
             var presenterObject = new SerializedObject(presenter);
+            presenterObject.FindProperty("m_SessionController").objectReferenceValue = sessionController;
             presenterObject.FindProperty("m_TranslatedWordText").objectReferenceValue = translatedText;
             presenterObject.FindProperty("m_SourceWordText").objectReferenceValue = sourceText;
             presenterObject.FindProperty("m_PhoneticHintText").objectReferenceValue = phoneticText;
@@ -486,7 +485,6 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
                 typeof(RectTransform),
                 typeof(CanvasGroup),
                 typeof(Image),
-                typeof(Outline),
                 typeof(PooledDetectionOverlay));
             boxObject.transform.SetParent(parent, false);
 
@@ -498,12 +496,8 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
             rectTransform.sizeDelta = new Vector2(360f, 260f);
 
             var image = boxObject.GetComponent<Image>();
-            image.color = new Color(0.07f, 0.88f, 0.48f, 0.12f);
+            image.color = Color.clear;
             image.raycastTarget = false;
-
-            var outline = boxObject.GetComponent<Outline>();
-            outline.effectColor = new Color(0.07f, 0.88f, 0.48f, 1f);
-            outline.effectDistance = new Vector2(3f, -3f);
 
             var labelObject = new GameObject("Detection Label", typeof(RectTransform), typeof(TextMeshProUGUI));
             labelObject.transform.SetParent(boxObject.transform, false);
