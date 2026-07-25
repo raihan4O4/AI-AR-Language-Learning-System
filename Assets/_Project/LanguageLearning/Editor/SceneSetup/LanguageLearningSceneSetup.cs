@@ -462,6 +462,13 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
             var sourceText = CreateText(panel.transform, "Source Word", "book", 36f, FontStyles.Normal, TextAlignmentOptions.Left, fontAsset);
             var translatedText = CreateText(panel.transform, "Translated Word", "किताब", 68f, FontStyles.Bold, TextAlignmentOptions.Left, fontAsset);
             var phoneticText = CreateText(panel.transform, "Phonetic Hint", "kitaab", 28f, FontStyles.Italic, TextAlignmentOptions.Left, fontAsset);
+            translatedText.enableAutoSizing = true;
+            translatedText.fontSizeMin = 30f;
+            translatedText.fontSizeMax = 68f;
+            translatedText.overflowMode = TextOverflowModes.Overflow;
+            var translatedLayout = translatedText.GetComponent<LayoutElement>();
+            translatedLayout.minHeight = 84f;
+            translatedLayout.preferredHeight = 96f;
 
             var presenterObject = new SerializedObject(presenter);
             presenterObject.FindProperty("m_SessionController").objectReferenceValue = sessionController;

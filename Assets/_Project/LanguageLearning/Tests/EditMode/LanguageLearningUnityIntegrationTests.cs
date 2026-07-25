@@ -130,6 +130,21 @@ namespace AIAR.LanguageLearning.Tests
             malayalamButton.onClick.Invoke();
             Assert.AreEqual(Domain.LanguageCode.Malayalam, session.LearningLanguage);
 
+            foreach (Domain.LanguageCode language in System.Enum.GetValues(typeof(Domain.LanguageCode)))
+            {
+                var languageButtonName =
+                    $"{Domain.LanguageCodeExtensions.ToIsoCode(language).ToUpperInvariant()} Button";
+                var languageButton = System.Array.Find(
+                    languageSelector.GetComponentsInChildren<Button>(true),
+                    button => button.name == languageButtonName);
+                Assert.IsNotNull(languageButton, $"The scan selector is missing {languageButtonName}.");
+                languageButton.onClick.Invoke();
+                Assert.AreEqual(
+                    language,
+                    session.LearningLanguage,
+                    $"The scan selector did not select {language}.");
+            }
+
             var serializedRecognizer = new SerializedObject(recognizer);
             Assert.LessOrEqual(
                 serializedRecognizer.FindProperty("m_LayersPerFrame").intValue,
@@ -164,10 +179,15 @@ namespace AIAR.LanguageLearning.Tests
 
             var session = Object.FindAnyObjectByType<LearningSessionController>();
             var repository = Object.FindAnyObjectByType<ResourcesVocabularyRepository>();
-            var presenter = Object.FindAnyObjectByType<ARVocabularyOverlayPresenter>();
+            var vocabularyPanel = GameObject.Find("Vocabulary Panel");
+            var presenter = vocabularyPanel != null
+                ? vocabularyPanel.GetComponent<ARVocabularyOverlayPresenter>()
+                : null;
+            var mvp = Object.FindAnyObjectByType<LearningMvpController>();
             Assert.IsNotNull(session);
             Assert.IsNotNull(repository);
             Assert.IsNotNull(presenter);
+            Assert.IsNotNull(mvp);
 
             var presenterObject = new SerializedObject(presenter);
             Assert.AreEqual(
@@ -201,9 +221,13 @@ namespace AIAR.LanguageLearning.Tests
 
             foreach (Domain.LanguageCode language in System.Enum.GetValues(typeof(Domain.LanguageCode)))
             {
-                session.SetLearningLanguage((int)language);
+                mvp.SelectScanLanguage((int)language);
                 var expected = entry.GetRequiredTranslation(language);
 
+                Assert.AreEqual(
+                    language,
+                    session.LearningLanguage,
+                    $"The scan selector did not select {language}.");
                 Assert.AreEqual(
                     expected.Text,
                     translatedWordText.text,
@@ -220,6 +244,21 @@ namespace AIAR.LanguageLearning.Tests
                     _ => "NotoSans-Regular SDF"
                 };
                 Assert.AreEqual(expectedFontName, translatedWordText.font.name);
+
+                translatedWordText.ForceMeshUpdate(true, true);
+                Assert.Greater(
+                    translatedWordText.textInfo.characterCount,
+                    0,
+                    $"TextMesh Pro generated no characters for {language}.");
+                Assert.IsTrue(
+                    System.Array.Exists(
+                        translatedWordText.textInfo.characterInfo,
+                        character => character.isVisible),
+                    $"TextMesh Pro generated no visible glyphs for {language}.");
+                Assert.AreEqual(
+                    translatedWordText.font.atlasTexture,
+                    translatedWordText.fontSharedMaterial.mainTexture,
+                    $"The font atlas and material texture do not match for {language}.");
             }
         }
 

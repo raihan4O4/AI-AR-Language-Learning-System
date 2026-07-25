@@ -1,6 +1,7 @@
 using AIAR.LanguageLearning.Domain;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace AIAR.LanguageLearning.Unity.Presentation
 {
@@ -23,6 +24,10 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
         [SerializeField]
         CanvasGroup m_CanvasGroup;
+
+        string m_LastTranslatedWord;
+        LanguageCode? m_LastTranslatedLanguage;
+        bool m_TranslatedWordLayoutConfigured;
 
         public static TMP_FontAsset GetMultilingualFontAsset()
         {
@@ -51,10 +56,13 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             string phoneticHint,
             string languageName)
         {
-            ApplyTranslatedWordFont(languageName);
+            var language = LanguageCodeExtensions.TryParse(languageName, out var parsedLanguage)
+                ? parsedLanguage
+                : LanguageCode.English;
+            var translatedValue = translatedWord ?? string.Empty;
 
-            if (m_TranslatedWordText != null)
-                m_TranslatedWordText.text = translatedWord ?? string.Empty;
+            SetVisible(true);
+            UpdateTranslatedWord(translatedValue, language);
 
             if (m_SourceWordText != null)
                 m_SourceWordText.text = sourceWord ?? string.Empty;
@@ -64,8 +72,6 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
             if (m_LanguageText != null)
                 m_LanguageText.text = languageName ?? string.Empty;
-
-            SetVisible(true);
         }
 
         public void Hide()
@@ -85,14 +91,64 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             ApplyFont(m_LanguageText, fontAsset);
         }
 
-        void ApplyTranslatedWordFont(string languageName)
+        void UpdateTranslatedWord(string translatedWord, LanguageCode language)
         {
-            var language = LanguageCodeExtensions.TryParse(languageName, out var parsedLanguage)
-                ? parsedLanguage
-                : LanguageCode.English;
+            if (m_TranslatedWordText == null)
+                return;
+
+            ConfigureTranslatedWordLayout();
+
             var fontAsset = MultilingualFontProvider.GetFontAsset(language);
-            if (fontAsset != null)
-                ApplyFont(m_TranslatedWordText, fontAsset);
+            if (m_LastTranslatedLanguage == language &&
+                string.Equals(m_LastTranslatedWord, translatedWord, System.StringComparison.Ordinal) &&
+                m_TranslatedWordText.font == fontAsset &&
+                string.Equals(m_TranslatedWordText.text, translatedWord, System.StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            if (fontAsset != null && !string.IsNullOrEmpty(translatedWord) && !fontAsset.HasCharacters(translatedWord))
+            {
+                fontAsset.TryAddCharacters(translatedWord, out var missingCharacters);
+                if (!string.IsNullOrEmpty(missingCharacters))
+                {
+                    Debug.LogWarning(
+                        $"Font '{fontAsset.name}' is missing glyphs for '{missingCharacters}' " +
+                        $"while displaying {language}.");
+                }
+            }
+
+            ApplyFont(m_TranslatedWordText, fontAsset);
+            m_TranslatedWordText.enabled = true;
+            m_TranslatedWordText.SetText(translatedWord);
+            if (m_TranslatedWordText.rectTransform.parent is RectTransform layoutRoot)
+                LayoutRebuilder.ForceRebuildLayoutImmediate(layoutRoot);
+            m_TranslatedWordText.SetAllDirty();
+            m_TranslatedWordText.ForceMeshUpdate(true, true);
+
+            m_LastTranslatedWord = translatedWord;
+            m_LastTranslatedLanguage = language;
+        }
+
+        void ConfigureTranslatedWordLayout()
+        {
+            if (m_TranslatedWordLayoutConfigured || m_TranslatedWordText == null)
+                return;
+
+            m_TranslatedWordText.textWrappingMode = TextWrappingModes.NoWrap;
+            m_TranslatedWordText.overflowMode = TextOverflowModes.Overflow;
+            m_TranslatedWordText.enableAutoSizing = true;
+            m_TranslatedWordText.fontSizeMin = 30f;
+            m_TranslatedWordText.fontSizeMax = Mathf.Max(68f, m_TranslatedWordText.fontSize);
+
+            var layoutElement = m_TranslatedWordText.GetComponent<LayoutElement>();
+            if (layoutElement != null)
+            {
+                layoutElement.minHeight = Mathf.Max(84f, layoutElement.minHeight);
+                layoutElement.preferredHeight = Mathf.Max(96f, layoutElement.preferredHeight);
+            }
+
+            m_TranslatedWordLayoutConfigured = true;
         }
 
         void SubscribeToSession()
@@ -112,10 +168,12 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
         static void ApplyFont(TMP_Text text, TMP_FontAsset fontAsset)
         {
-            if (text == null)
+            if (text == null || fontAsset == null)
                 return;
 
             text.font = fontAsset;
+            if (fontAsset.material != null && text.fontSharedMaterial != fontAsset.material)
+                text.fontSharedMaterial = fontAsset.material;
         }
 
         static class MultilingualFontProvider
