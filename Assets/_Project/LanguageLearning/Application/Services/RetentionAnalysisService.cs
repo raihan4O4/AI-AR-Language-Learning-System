@@ -12,7 +12,8 @@ namespace AIAR.LanguageLearning.Application.Services
             IReadOnlyList<VocabularyEntry> catalog,
             IReadOnlyList<WordProgress> progress,
             double masteredThreshold = 0.75d,
-            double strugglingThreshold = 0.45d)
+            double strugglingThreshold = 0.6d,
+            DateTime? nowUtc = null)
         {
             if (catalog == null)
                 throw new ArgumentNullException(nameof(catalog));
@@ -23,19 +24,30 @@ namespace AIAR.LanguageLearning.Application.Services
 
             var trackedProgress = catalog
                 .Where(entry => entry != null)
+                .GroupBy(entry => entry.Id, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
                 .Select(entry => progressById.TryGetValue(entry.Id, out var wordProgress)
                     ? wordProgress
                     : WordProgress.CreateNew(entry.Id))
                 .ToArray();
 
             if (trackedProgress.Length == 0)
-                return new RetentionSummary(0, 0, 0, 0, 0d, 0d);
+                return new RetentionSummary(0, 0, 0, 0, 0d, 0d, 0, 0, 0d);
 
-            var seenWords = trackedProgress.Count(item => item.TimesSeen > 0);
-            var masteredWords = trackedProgress.Count(item => item.MasteryScore >= masteredThreshold);
-            var strugglingWords = trackedProgress.Count(item => item.TimesSeen > 0 && item.MasteryScore < strugglingThreshold);
-            var averageMastery = trackedProgress.Average(item => item.MasteryScore);
+            var analysisTime = (nowUtc ?? DateTime.UtcNow).ToUniversalTime();
+            var learnedProgress = trackedProgress.Where(item => item.HasLearningEvidence).ToArray();
+            var seenWords = learnedProgress.Length;
+            var masteredWords = learnedProgress.Count(item =>
+                item.CalculateRetentionScore(analysisTime) >= masteredThreshold);
+            var strugglingWords = learnedProgress.Count(item =>
+                item.NeedsRevision(analysisTime, strugglingThreshold));
+            var averageMastery = learnedProgress.Length == 0
+                ? 0d
+                : learnedProgress.Average(item => item.CalculateRetentionScore(analysisTime));
             var retentionRate = seenWords == 0 ? 0d : masteredWords / (double)seenWords;
+            var quizAttempts = learnedProgress.Sum(item => item.QuizAttempts);
+            var quizCorrect = learnedProgress.Sum(item => item.QuizCorrect);
+            var quizAccuracy = quizAttempts == 0 ? 0d : quizCorrect / (double)quizAttempts;
 
             return new RetentionSummary(
                 trackedProgress.Length,
@@ -43,7 +55,10 @@ namespace AIAR.LanguageLearning.Application.Services
                 masteredWords,
                 strugglingWords,
                 averageMastery,
-                retentionRate);
+                retentionRate,
+                quizAttempts,
+                quizCorrect,
+                quizAccuracy);
         }
     }
 }

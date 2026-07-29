@@ -104,6 +104,99 @@ namespace AIAR.LanguageLearning.Tests
         }
 
         [Test]
+        public void MainScene_ProgressDashboardContainsEvidenceBasedAnalyticsSections()
+        {
+            EditorSceneManager.OpenScene(MainScenePath, OpenSceneMode.Single);
+
+            var mvp = Object.FindAnyObjectByType<LearningMvpController>();
+            Assert.IsNotNull(mvp);
+            mvp.ShowProgress();
+
+            Assert.IsNotNull(GameObject.Find("Vocabulary mastery Value"));
+            Assert.IsNotNull(GameObject.Find("Quiz accuracy Value"));
+            Assert.IsNotNull(GameObject.Find("Retention score Value"));
+            Assert.IsNotNull(GameObject.Find("Needs revision Value"));
+            Assert.IsNotNull(GameObject.Find("Weekly Summary"));
+            Assert.IsNotNull(GameObject.Find("Recent Learning Activity Card"));
+            Assert.IsNotNull(GameObject.Find("Revision Recommendations"));
+
+            var firstFill = GameObject.Find("Activity Fill 1");
+            Assert.IsNotNull(firstFill, "Weekly bars must use data-driven fills inside a stable track.");
+            Assert.LessOrEqual(firstFill.GetComponent<RectTransform>().anchorMax.y, 1f);
+        }
+
+        [Test]
+        public void LearningActivityTracker_PersistsTypedDailyMetrics()
+        {
+            LearningActivityTracker.SetStorageKeyForTests("aiar.language-learning.tests.activity-retention");
+            LearningActivityTracker.Clear();
+            try
+            {
+                LearningActivityTracker.RecordObjectScan();
+                LearningActivityTracker.RecordQuizAnswer(true, 15);
+                LearningActivityTracker.RecordQuizAnswer(false, 3);
+                LearningActivityTracker.RecordQuizCompleted();
+                LearningActivityTracker.RecordPronunciationPlayed();
+                LearningActivityTracker.RecordLearningSeconds(125f);
+
+                var snapshot = LearningActivityTracker.GetSnapshot();
+                var today = snapshot.WeeklyDays[snapshot.WeeklyDays.Length - 1];
+
+                Assert.AreEqual(1, today.ObjectScans);
+                Assert.AreEqual(2, today.QuizAnswers);
+                Assert.AreEqual(1, today.QuizCorrect);
+                Assert.AreEqual(1, today.QuizzesCompleted);
+                Assert.AreEqual(1, today.PronunciationPlays);
+                Assert.AreEqual(125, today.LearningSeconds);
+                Assert.AreEqual(0.5d, snapshot.WeeklyQuizAccuracy, 0.0001d);
+                Assert.AreEqual(1, snapshot.StreakDays);
+            }
+            finally
+            {
+                LearningActivityTracker.Clear();
+                LearningActivityTracker.SetStorageKeyForTests(null);
+            }
+        }
+
+        [Test]
+        public void PlayerPrefsProgressRepository_RoundTripsRecallEvidence()
+        {
+            const string key = "aiar.language-learning.tests.progress-retention";
+            var repository = new PlayerPrefsProgressRepository(key);
+            repository.Clear();
+            try
+            {
+                var now = new System.DateTime(2026, 6, 15, 8, 0, 0, System.DateTimeKind.Utc);
+                var progress = new Domain.WordProgress(
+                    "book",
+                    4,
+                    1,
+                    3,
+                    1,
+                    now,
+                    2,
+                    2,
+                    now,
+                    now.AddDays(-1),
+                    now.AddDays(-2));
+
+                repository.Save(progress);
+                var loaded = repository.Load("book");
+
+                Assert.IsNotNull(loaded);
+                Assert.AreEqual(2, loaded.CorrectRecallStreak);
+                Assert.AreEqual(2, loaded.SpacedCorrectRecalls);
+                Assert.AreEqual(now, loaded.LastQuizAtUtc);
+                Assert.AreEqual(now.AddDays(-1), loaded.LastCorrectAtUtc);
+                Assert.AreEqual(now.AddDays(-2), loaded.LastScannedAtUtc);
+            }
+            finally
+            {
+                repository.Clear();
+            }
+        }
+
+        [Test]
         public void MainScene_ScanHasRealtimeBudgetAndLanguageSpeechControls()
         {
             EditorSceneManager.OpenScene(MainScenePath, OpenSceneMode.Single);

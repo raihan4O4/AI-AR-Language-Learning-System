@@ -199,14 +199,16 @@ Hierarchy:
 Metrics:
 
 - Level and XP progress
-- Words learned
+- Vocabulary mastery among learned words
 - Objects scanned
 - Quiz accuracy
+- Retention score from assessed recall evidence
+- Words needing revision
 - Current streak
-- Learning time
-- Seven-day activity
-- Recent achievement
-- Adaptive practice recommendations
+- Focused Scan/Quiz learning time
+- Data-scaled seven-day activity with scan, quiz, accuracy, and time summary
+- Recent scans, completed quizzes, explored words, and mastered words
+- Adaptive revision queue with per-word reason and quiz accuracy
 
 ## Motion guidelines
 

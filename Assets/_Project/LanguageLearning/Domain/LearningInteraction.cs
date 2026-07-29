@@ -14,6 +14,21 @@ namespace AIAR.LanguageLearning.Domain
             if (string.IsNullOrWhiteSpace(vocabularyId))
                 throw new ArgumentException("Vocabulary id is required.", nameof(vocabularyId));
 
+            if (!Enum.IsDefined(typeof(LanguageCode), language))
+                throw new ArgumentOutOfRangeException(nameof(language));
+
+            if (!Enum.IsDefined(typeof(LearningInteractionType), interactionType))
+                throw new ArgumentOutOfRangeException(nameof(interactionType));
+
+            if (occurredAtUtc == default || occurredAtUtc == DateTime.MinValue)
+                throw new ArgumentException("Interaction time is required.", nameof(occurredAtUtc));
+
+            if (interactionType == LearningInteractionType.QuizAnswered && !wasCorrect.HasValue)
+                throw new ArgumentException("Quiz answers require a correctness result.", nameof(wasCorrect));
+
+            if (interactionType != LearningInteractionType.QuizAnswered && wasCorrect.HasValue)
+                throw new ArgumentException("Only quiz answers can contain a correctness result.", nameof(wasCorrect));
+
             VocabularyId = vocabularyId.Trim();
             Language = language;
             InteractionType = interactionType;

@@ -196,7 +196,6 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 return;
 
             m_SessionController.SpeakCurrentWord();
-            LearningActivityTracker.Record(3);
         }
 
         static void ConfigureText(

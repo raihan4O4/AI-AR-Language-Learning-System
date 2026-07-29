@@ -19,7 +19,7 @@
   vocabulary-backed detection is available.
 - Quiz has English, Hindi, Malayalam, and French selectors plus explicit Back and Next/Finish controls.
 - Quiz questions are generated as a varied sequence and never repeat consecutively.
-- Quiz outcomes, learning progress, revision priority, and total learning time persist locally.
+- Quiz outcomes, learning progress, revision priority, and focused learning time persist locally.
 - Android TTS initializes asynchronously, queues the first request, and reports unavailable language packs instead of failing silently.
 - AR raycasting places a world-space vocabulary label when a plane or feature point is available; the screen-space overlay remains the reliable fallback.
 - Android settings are configured for APK testing: package id `com.raihan.aiarlanguagelearning`, IL2CPP, ARM64, min SDK 25.
@@ -50,7 +50,10 @@ The menu command reruns the scene setup first, then starts a development Android
 9. Tap `EN`, `HI`, `ML`, or `FR` to switch the learning language, then use Back to return Home.
 10. Open `Quiz`, select each language, answer a question, tap Next, and confirm the prompt changes.
 11. Complete five questions, then confirm Finish returns Home and the score is persisted.
-12. Open `Progress`, confirm the statistics reflect the session, then use Back to return Home.
+12. Open `Progress`; confirm scans, completed quizzes, accuracy, focused time, and today's bar reflect the session.
+13. Confirm incorrectly answered or not-yet-tested learned words appear in the adaptive revision queue.
+14. Start another quiz and confirm weak learned words recur more often without appearing twice in a row.
+15. Use Back to return Home.
 
 ## Automated Validation
 

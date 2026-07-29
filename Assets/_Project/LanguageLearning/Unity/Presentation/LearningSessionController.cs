@@ -113,6 +113,8 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
             m_CompositionRoot.TextToSpeechService.Speak(m_CurrentLookup.Translation);
             m_CompositionRoot.LearningService.RecordPronunciationAttempt(m_CurrentLookup.Entry, m_LearningLanguage);
+            if (UnityEngine.Application.isPlaying)
+                LearningActivityTracker.RecordPronunciationPlayed();
         }
 
         public void ResumeRecognition()
@@ -501,6 +503,8 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
             m_LastViewRecordedAt[entry.Id] = now;
             m_CompositionRoot.LearningService.RecordObjectViewed(entry, m_LearningLanguage);
+            if (UnityEngine.Application.isPlaying)
+                LearningActivityTracker.RecordObjectScan();
         }
 
         void LogRecognition(string message)

@@ -24,13 +24,22 @@ namespace AIAR.LanguageLearning.Unity.Data
             if (string.IsNullOrWhiteSpace(json))
                 return Array.Empty<WordProgress>();
 
-            var document = JsonUtility.FromJson<ProgressDocument>(json);
+            ProgressDocument document;
+            try
+            {
+                document = JsonUtility.FromJson<ProgressDocument>(json);
+            }
+            catch (ArgumentException)
+            {
+                return Array.Empty<WordProgress>();
+            }
+
             if (document == null || document.words == null)
                 return Array.Empty<WordProgress>();
 
             return document.words
                 .Where(record => record != null && !string.IsNullOrWhiteSpace(record.vocabularyId))
-                .Select(ToDomain)
+                .Select(record => ToDomain(record, document.schemaVersion))
                 .ToArray();
         }
 
@@ -49,7 +58,8 @@ namespace AIAR.LanguageLearning.Unity.Data
                 throw new ArgumentNullException(nameof(progress));
 
             var progressById = LoadAll()
-                .ToDictionary(item => item.VocabularyId, item => item, StringComparer.OrdinalIgnoreCase);
+                .GroupBy(item => item.VocabularyId, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.Last(), StringComparer.OrdinalIgnoreCase);
 
             progressById[progress.VocabularyId] = progress;
             SaveAll(progressById.Values);
@@ -59,7 +69,7 @@ namespace AIAR.LanguageLearning.Unity.Data
         {
             var document = new ProgressDocument
             {
-                schemaVersion = 1,
+                schemaVersion = 2,
                 words = (progress ?? Array.Empty<WordProgress>())
                     .Where(item => item != null)
                     .Select(ToRecord)
@@ -76,12 +86,20 @@ namespace AIAR.LanguageLearning.Unity.Data
             PlayerPrefs.Save();
         }
 
-        static WordProgress ToDomain(ProgressRecord record)
+        static WordProgress ToDomain(ProgressRecord record, int schemaVersion)
         {
-            var lastSeenTicks = Math.Max(0L, record.lastSeenAtUtcTicks);
-            var lastSeen = lastSeenTicks == 0L
-                ? DateTime.MinValue
-                : new DateTime(lastSeenTicks, DateTimeKind.Utc);
+            var lastSeen = FromUtcTicks(record.lastSeenAtUtcTicks);
+
+            if (schemaVersion < 2)
+            {
+                return new WordProgress(
+                    record.vocabularyId,
+                    record.timesSeen,
+                    record.pronunciationAttempts,
+                    record.quizCorrect,
+                    record.quizIncorrect,
+                    lastSeen);
+            }
 
             return new WordProgress(
                 record.vocabularyId,
@@ -89,7 +107,12 @@ namespace AIAR.LanguageLearning.Unity.Data
                 record.pronunciationAttempts,
                 record.quizCorrect,
                 record.quizIncorrect,
-                lastSeen);
+                lastSeen,
+                record.correctRecallStreak,
+                record.spacedCorrectRecalls,
+                FromUtcTicks(record.lastQuizAtUtcTicks),
+                FromUtcTicks(record.lastCorrectAtUtcTicks),
+                FromUtcTicks(record.lastScannedAtUtcTicks));
         }
 
         static ProgressRecord ToRecord(WordProgress progress)
@@ -101,10 +124,29 @@ namespace AIAR.LanguageLearning.Unity.Data
                 pronunciationAttempts = progress.PronunciationAttempts,
                 quizCorrect = progress.QuizCorrect,
                 quizIncorrect = progress.QuizIncorrect,
+                correctRecallStreak = progress.CorrectRecallStreak,
+                spacedCorrectRecalls = progress.SpacedCorrectRecalls,
                 lastSeenAtUtcTicks = progress.LastSeenAtUtc == DateTime.MinValue
                     ? 0L
-                    : progress.LastSeenAtUtc.Ticks
+                    : progress.LastSeenAtUtc.Ticks,
+                lastQuizAtUtcTicks = progress.LastQuizAtUtc == DateTime.MinValue
+                    ? 0L
+                    : progress.LastQuizAtUtc.Ticks,
+                lastCorrectAtUtcTicks = progress.LastCorrectAtUtc == DateTime.MinValue
+                    ? 0L
+                    : progress.LastCorrectAtUtc.Ticks,
+                lastScannedAtUtcTicks = progress.LastScannedAtUtc == DateTime.MinValue
+                    ? 0L
+                    : progress.LastScannedAtUtc.Ticks
             };
+        }
+
+        static DateTime FromUtcTicks(long ticks)
+        {
+            if (ticks <= 0L)
+                return DateTime.MinValue;
+
+            return new DateTime(Math.Min(DateTime.MaxValue.Ticks, ticks), DateTimeKind.Utc);
         }
 
         [Serializable]
@@ -122,7 +164,12 @@ namespace AIAR.LanguageLearning.Unity.Data
             public int pronunciationAttempts;
             public int quizCorrect;
             public int quizIncorrect;
+            public int correctRecallStreak;
+            public int spacedCorrectRecalls;
             public long lastSeenAtUtcTicks;
+            public long lastQuizAtUtcTicks;
+            public long lastCorrectAtUtcTicks;
+            public long lastScannedAtUtcTicks;
         }
     }
 }

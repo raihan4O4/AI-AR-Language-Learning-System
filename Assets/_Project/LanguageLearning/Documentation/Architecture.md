@@ -123,10 +123,43 @@ TTS:
 `AndroidTextToSpeechService` is the mobile adapter. For pronunciation scoring later, add a separate speech-recognition port rather than mixing assessment into TTS.
 
 Adaptive learning:
-`AdaptiveRevisionService` currently ranks unseen, low-accuracy, low-mastery, and stale words. The scoring can evolve without changing AR presentation code.
+`AdaptiveRevisionService` separates discovery from revision. The dashboard queue contains only learned
+words that are unassessed, below the retention threshold, or overdue. Quiz generation uses the same
+risk signal as a sampling weight, so weak learned words recur more often without allowing adjacent
+duplicate questions. Unseen catalog words remain eligible at a lower baseline weight.
 
 Retention analysis:
-`RetentionAnalysisService` converts raw word progress into total words, seen words, mastered words, struggling words, average mastery, and retention rate for the result-analysis section of the project.
+`RetentionAnalysisService` converts persisted word evidence into total and explored words, mastered
+words, words needing revision, vocabulary mastery, average retention, and quiz accuracy.
+
+### Analytics definitions and integrity
+
+The MVP deliberately uses explainable metrics rather than generated or estimated dashboard values:
+
+| Metric | Definition | Persisted evidence |
+|---|---|---|
+| Vocabulary mastery | Mastered learned words / all learned words. A word is mastered at a retention score of at least 75%. | Per-word quiz and recall history |
+| Quiz accuracy | Correct answers / all quiz answers. Empty history displays 0%, not a fabricated baseline. | Correct and incorrect answer counts |
+| Retention score | 50% confidence-weighted quiz accuracy + 40% spaced successful recalls + 10% recall recency. Attempt confidence reaches full weight after three answers; spaced recall credit requires 20 hours between successful recalls; recency decreases over 30 days. | Attempts, correct answers, spaced-recall count, last-correct time |
+| Needs revision | A learned word has no quiz evidence, retention below 60%, no successful recall, or its last successful recall is at least seven days old. | Per-word retention evidence |
+| Recent/weekly activity | Exact scans, quiz answers, completed quizzes, pronunciation plays, and focused learning seconds aggregated by local calendar day. | Typed daily activity records |
+| Learning streak | Consecutive days containing at least one scan, quiz answer, or pronunciation action. An unfinished current day does not break yesterday's streak. | Typed daily activity records |
+| Focused learning time | Time while the learner is on Scan or Quiz only; Home and Progress browsing are excluded. | Periodic focused-time checkpoints |
+
+Object scans are recorded only after the detector produces a catalog match and the 12-second per-word
+cooldown passes. Quiz completions are recorded only after the final answer. Pronunciation playback is
+counted once at the service boundary. These rules prevent rendering frames, repeated UI callbacks, and
+partially opened quizzes from inflating the analytics.
+
+Progress schema v2 stores recall streaks and timestamps while reading schema v1 saves. Because the old
+schema did not retain answer timing, migration grants at most one historical recall session rather than
+inventing spaced repetitions. Focused-time tracking starts on its own v2 key because the earlier timer
+included Home and Progress screen time and therefore cannot be migrated without misrepresenting it.
+
+These analytics demonstrate the observed AR-to-quiz learning loop, but they do not by themselves prove
+that AR caused a learning improvement. A causal effectiveness claim would require a pre-test/post-test
+or non-AR comparison design. Pronunciation playback is engagement evidence only; it is not pronunciation
+accuracy because the MVP has no speech-assessment model.
 
 ## Font Note
 
@@ -147,6 +180,7 @@ also keeps TextMesh Pro's Android pre-build scan deterministic.
 - The learner can return Home from Scan, Quiz, and Progress.
 - Quiz exposes all four languages, advances only after an answer, and does not repeat adjacent prompts.
 - Quiz answers are persisted and immediately update mastery/accuracy.
-- Progress shows explored, mastered, struggling, mastery, accuracy, time, and adaptive recommendations.
+- Progress shows mastery, accuracy, retention, revision need, real weekly activity, focused time, and an adaptive revision queue.
+- Weak learned words are sampled more often in later quizzes, with no adjacent duplicate prompts.
 - EditMode tests cover business rules, scene wiring, letterbox inversion, channel-first decoding, NMS,
   catalog completeness, multilingual font atlases, the imported model contract, and a CPU inference smoke test.
