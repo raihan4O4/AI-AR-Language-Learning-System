@@ -1,3 +1,6 @@
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 using AIAR.LanguageLearning.Domain;
 using TMPro;
 using UnityEngine;
@@ -25,6 +28,13 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         [SerializeField]
         CanvasGroup m_CanvasGroup;
 
+        TMP_Text m_ConfidenceText;
+        Button m_PronunciationButton;
+        RectTransform m_CardRect;
+        Vector2 m_RestingPosition;
+        Coroutine m_ShowAnimation;
+        bool m_ModernLayoutApplied;
+
         string m_LastTranslatedWord;
         LanguageCode? m_LastTranslatedLanguage;
         bool m_TranslatedWordLayoutConfigured;
@@ -37,6 +47,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         void Awake()
         {
             ApplyMultilingualFont();
+            ApplyModernLayout();
             Hide();
         }
 
@@ -56,6 +67,8 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             string phoneticHint,
             string languageName)
         {
+            ApplyModernLayout();
+            var wasHidden = m_CanvasGroup == null || m_CanvasGroup.alpha < 0.01f;
             var language = LanguageCodeExtensions.TryParse(languageName, out var parsedLanguage)
                 ? parsedLanguage
                 : LanguageCode.English;
@@ -65,18 +78,131 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             UpdateTranslatedWord(translatedValue, language);
 
             if (m_SourceWordText != null)
-                m_SourceWordText.text = sourceWord ?? string.Empty;
+                m_SourceWordText.text = string.IsNullOrWhiteSpace(sourceWord) ? "Detected object" : sourceWord;
 
             if (m_PhoneticHintText != null)
-                m_PhoneticHintText.text = phoneticHint ?? string.Empty;
+                m_PhoneticHintText.text = string.IsNullOrWhiteSpace(phoneticHint) ? "Tap the speaker to hear it" : phoneticHint;
 
             if (m_LanguageText != null)
-                m_LanguageText.text = languageName ?? string.Empty;
+                m_LanguageText.text = $"{languageName ?? "Language"} translation";
+
+            if (wasHidden && UnityEngine.Application.isPlaying)
+            {
+                if (m_ShowAnimation != null)
+                    StopCoroutine(m_ShowAnimation);
+                m_ShowAnimation = StartCoroutine(AnimateIn());
+            }
         }
 
         public void Hide()
         {
             SetVisible(false);
+        }
+
+        public void ApplyModernLayout()
+        {
+            if (m_ModernLayoutApplied)
+                return;
+
+            m_CardRect = transform as RectTransform;
+            if (m_CardRect != null)
+            {
+                m_CardRect.anchorMin = new Vector2(0f, 1f);
+                m_CardRect.anchorMax = new Vector2(1f, 1f);
+                m_CardRect.pivot = new Vector2(0.5f, 1f);
+                m_CardRect.anchoredPosition = new Vector2(0f, -132f);
+                m_CardRect.sizeDelta = new Vector2(-64f, 252f);
+                m_RestingPosition = m_CardRect.anchoredPosition;
+            }
+
+            var image = GetComponent<Image>();
+            if (image != null)
+                LearningUiTheme.StyleSurface(image, LearningUiTheme.Glass, LearningUiTheme.RadiusLarge, true, new Vector2(0f, -8f));
+
+            var layout = GetComponent<VerticalLayoutGroup>() ?? gameObject.AddComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(30, 112, 20, 18);
+            layout.spacing = 2f;
+            layout.childAlignment = TextAnchor.UpperLeft;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+
+            ConfigureText(m_LanguageText, 18f, LearningUiTheme.PrimaryDark, FontStyles.Bold, 28f);
+            ConfigureText(m_SourceWordText, 28f, LearningUiTheme.Ink, FontStyles.Bold, 40f);
+            ConfigureText(m_TranslatedWordText, 49f, LearningUiTheme.Ink, FontStyles.Bold, 66f);
+            ConfigureText(m_PhoneticHintText, 20f, LearningUiTheme.Muted, FontStyles.Italic, 34f);
+
+            if (m_ConfidenceText == null)
+            {
+                var confidenceObject = new GameObject("Confidence", typeof(RectTransform), typeof(TextMeshProUGUI), typeof(LayoutElement));
+                confidenceObject.transform.SetParent(transform, false);
+                m_ConfidenceText = confidenceObject.GetComponent<TextMeshProUGUI>();
+                if (m_SourceWordText != null)
+                    m_ConfidenceText.font = m_SourceWordText.font;
+            }
+            ConfigureText(m_ConfidenceText, 18f, LearningUiTheme.Muted, FontStyles.Normal, 30f);
+            m_ConfidenceText.text = "Looking for a confident match";
+
+            if (m_PronunciationButton == null)
+            {
+                var buttonObject = new GameObject("Card Speak Button", typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
+                buttonObject.transform.SetParent(transform, false);
+                var ignoredLayout = buttonObject.GetComponent<LayoutElement>();
+                ignoredLayout.ignoreLayout = true;
+                var buttonRect = buttonObject.GetComponent<RectTransform>();
+                buttonRect.anchorMin = new Vector2(1f, 1f);
+                buttonRect.anchorMax = new Vector2(1f, 1f);
+                buttonRect.pivot = new Vector2(1f, 1f);
+                buttonRect.anchoredPosition = new Vector2(-24f, -24f);
+                buttonRect.sizeDelta = new Vector2(72f, 72f);
+                m_PronunciationButton = buttonObject.GetComponent<Button>();
+                m_PronunciationButton.targetGraphic = buttonObject.GetComponent<Image>();
+                m_PronunciationButton.onClick.AddListener(PlayPronunciation);
+                LearningUiTheme.StyleButton(m_PronunciationButton, LearningButtonStyle.Soft, LearningUiTheme.RadiusPill);
+                var iconObject = new GameObject("Speak Icon", typeof(RectTransform), typeof(LearningUiIcon));
+                iconObject.transform.SetParent(buttonObject.transform, false);
+                var iconRect = iconObject.GetComponent<RectTransform>();
+                iconRect.anchorMin = new Vector2(0.5f, 0.5f);
+                iconRect.anchorMax = new Vector2(0.5f, 0.5f);
+                iconRect.pivot = new Vector2(0.5f, 0.5f);
+                iconRect.sizeDelta = new Vector2(38f, 38f);
+                var icon = iconObject.GetComponent<LearningUiIcon>();
+                icon.Icon = LearningUiIconType.Speak;
+                icon.color = LearningUiTheme.PrimaryDark;
+            }
+
+            m_ModernLayoutApplied = true;
+        }
+
+        void PlayPronunciation()
+        {
+            if (m_SessionController?.CurrentVocabularyEntry == null)
+                return;
+
+            m_SessionController.SpeakCurrentWord();
+            LearningActivityTracker.Record(3);
+        }
+
+        static void ConfigureText(
+            TMP_Text text,
+            float fontSize,
+            Color color,
+            FontStyles fontStyle,
+            float preferredHeight)
+        {
+            if (text == null)
+                return;
+
+            text.fontSize = fontSize;
+            text.color = color;
+            text.fontStyle = fontStyle;
+            text.alignment = TextAlignmentOptions.Left;
+            text.textWrappingMode = TextWrappingModes.NoWrap;
+            text.overflowMode = TextOverflowModes.Truncate;
+            var layout = text.GetComponent<LayoutElement>() ?? text.gameObject.AddComponent<LayoutElement>();
+            layout.minHeight = preferredHeight;
+            layout.preferredHeight = preferredHeight;
         }
 
         void ApplyMultilingualFont()
@@ -156,14 +282,65 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             if (m_SessionController == null)
                 m_SessionController = FindAnyObjectByType<LearningSessionController>();
 
-            if (m_SessionController != null)
-                m_SessionController.VocabularyPresented += ShowVocabulary;
+            if (m_SessionController == null)
+                return;
+
+            m_SessionController.VocabularyPresented -= ShowVocabulary;
+            m_SessionController.VocabularyPresented += ShowVocabulary;
+            m_SessionController.RecognitionsPresented -= OnRecognitionsPresented;
+            m_SessionController.RecognitionsPresented += OnRecognitionsPresented;
         }
 
         void UnsubscribeFromSession()
         {
-            if (m_SessionController != null)
-                m_SessionController.VocabularyPresented -= ShowVocabulary;
+            if (m_SessionController == null)
+                return;
+
+            m_SessionController.VocabularyPresented -= ShowVocabulary;
+            m_SessionController.RecognitionsPresented -= OnRecognitionsPresented;
+        }
+
+        void OnRecognitionsPresented(IReadOnlyList<RecognitionPresentation> presentations)
+        {
+            if (m_ConfidenceText == null)
+                return;
+
+            var confidence = presentations == null
+                ? 0f
+                : presentations
+                    .Where(item => item.MatchedVocabulary)
+                    .Select(item => item.Confidence)
+                    .DefaultIfEmpty(0f)
+                    .Max();
+            m_ConfidenceText.text = confidence > 0f
+                ? $"{confidence:P0} confidence"
+                : "Looking for a confident match";
+        }
+
+        IEnumerator AnimateIn()
+        {
+            if (m_CanvasGroup == null || m_CardRect == null)
+                yield break;
+
+            var elapsed = 0f;
+            const float duration = 0.26f;
+            m_CanvasGroup.alpha = 0f;
+            m_CardRect.anchoredPosition = m_RestingPosition + Vector2.up * 24f;
+            m_CardRect.localScale = Vector3.one * 0.98f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                var amount = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / duration));
+                m_CanvasGroup.alpha = amount;
+                m_CardRect.anchoredPosition = Vector2.Lerp(m_RestingPosition + Vector2.up * 24f, m_RestingPosition, amount);
+                m_CardRect.localScale = Vector3.one * Mathf.Lerp(0.98f, 1f, amount);
+                yield return null;
+            }
+
+            m_CanvasGroup.alpha = 1f;
+            m_CardRect.anchoredPosition = m_RestingPosition;
+            m_CardRect.localScale = Vector3.one;
+            m_ShowAnimation = null;
         }
 
         static void ApplyFont(TMP_Text text, TMP_FontAsset fontAsset)

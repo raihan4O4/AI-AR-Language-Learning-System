@@ -203,6 +203,11 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
         {
             PlayerSettings.productName = "AI AR Language Learning";
             PlayerSettings.bundleVersion = "0.1.0";
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
+            PlayerSettings.allowedAutorotateToPortrait = true;
+            PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
+            PlayerSettings.allowedAutorotateToLandscapeLeft = false;
+            PlayerSettings.allowedAutorotateToLandscapeRight = false;
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.raihan.aiarlanguagelearning");
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel25;
@@ -449,7 +454,8 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
             var scaler = canvasRoot.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080f, 1920f);
-            scaler.matchWidthOrHeight = 0.5f;
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = 0f;
 
             canvasRoot.AddComponent<GraphicRaycaster>();
 
@@ -464,11 +470,11 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
             var phoneticText = CreateText(panel.transform, "Phonetic Hint", "kitaab", 28f, FontStyles.Italic, TextAlignmentOptions.Left, fontAsset);
             translatedText.enableAutoSizing = true;
             translatedText.fontSizeMin = 30f;
-            translatedText.fontSizeMax = 68f;
+            translatedText.fontSizeMax = 54f;
             translatedText.overflowMode = TextOverflowModes.Overflow;
             var translatedLayout = translatedText.GetComponent<LayoutElement>();
-            translatedLayout.minHeight = 84f;
-            translatedLayout.preferredHeight = 96f;
+            translatedLayout.minHeight = 68f;
+            translatedLayout.preferredHeight = 74f;
 
             var presenterObject = new SerializedObject(presenter);
             presenterObject.FindProperty("m_SessionController").objectReferenceValue = sessionController;
@@ -542,18 +548,18 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
             panel.transform.SetParent(parent, false);
 
             var rectTransform = panel.GetComponent<RectTransform>();
-            rectTransform.anchorMin = new Vector2(0f, 0f);
-            rectTransform.anchorMax = new Vector2(1f, 0f);
-            rectTransform.pivot = new Vector2(0.5f, 0f);
-            rectTransform.anchoredPosition = new Vector2(0f, 24f);
-            rectTransform.sizeDelta = new Vector2(-48f, 360f);
+            rectTransform.anchorMin = new Vector2(0f, 1f);
+            rectTransform.anchorMax = new Vector2(1f, 1f);
+            rectTransform.pivot = new Vector2(0.5f, 1f);
+            rectTransform.anchoredPosition = new Vector2(0f, -28f);
+            rectTransform.sizeDelta = new Vector2(-64f, 284f);
 
             var image = panel.GetComponent<Image>();
-            image.color = new Color(0.04f, 0.05f, 0.06f, 0.88f);
+            image.color = LearningUiTheme.Glass;
 
             var layout = panel.AddComponent<VerticalLayoutGroup>();
-            layout.padding = new RectOffset(32, 32, 24, 24);
-            layout.spacing = 8f;
+            layout.padding = new RectOffset(30, 112, 24, 22);
+            layout.spacing = 4f;
             layout.childAlignment = TextAnchor.UpperLeft;
             layout.childControlWidth = true;
             layout.childControlHeight = true;
