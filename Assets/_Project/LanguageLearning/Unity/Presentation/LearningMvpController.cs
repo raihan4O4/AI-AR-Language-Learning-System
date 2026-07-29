@@ -59,6 +59,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         CanvasGroup m_ProgressCanvasGroup;
         TMP_Text m_StatusText;
         TMP_Text m_QuizCounterText;
+        TMP_Text m_QuizQuestionCaptionText;
         TMP_Text m_QuizPromptText;
         TMP_Text m_QuizFeedbackText;
         TMP_Text m_ProgressSummaryText;
@@ -474,7 +475,9 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             m_QuestionAnswered = false;
 
             m_QuizCounterText.text = $"Question {m_QuestionsAnswered + 1} of {m_QuizLength}";
-            m_QuizPromptText.text = m_CurrentQuestion.Prompt;
+            m_QuizQuestionCaptionText.text =
+                $"TRANSLATE THIS {m_CurrentQuestion.Language.ToDisplayName().ToUpperInvariant()} WORD";
+            m_QuizPromptText.text = m_CurrentQuizEntry.CanonicalObjectLabel.ToUpperInvariant();
             m_QuizFeedbackText.text = "Choose the best translation.";
             m_QuizFeedbackText.color = LearningUiTheme.Muted;
             SetNextQuestionButton(false, "Next question");
@@ -498,6 +501,8 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
         void ShowQuizConfigurationError(string message)
         {
+            if (m_QuizQuestionCaptionText != null)
+                m_QuizQuestionCaptionText.text = "QUIZ UNAVAILABLE";
             m_QuizPromptText.text = message;
             m_QuizFeedbackText.text = "Choose another language or return to the main menu.";
             m_QuizEntries = Array.Empty<VocabularyEntry>();
@@ -965,13 +970,26 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             layout.padding = new RectOffset(36, 36, 64, 48);
             layout.spacing = 20f;
 
-            var greeting = CreateText(content.transform, "Greeting", "Hi, Explorer!", 48f, font, LearningUiTheme.Ink);
+            var homeHeader = CreateVerticalGroup(content.transform, "Home Header", 6f, 164f);
+            var eyebrow = CreateText(
+                homeHeader.transform,
+                "Exploration Eyebrow",
+                "READY TO EXPLORE",
+                18f,
+                font,
+                LearningUiTheme.PrimaryDark);
+            eyebrow.fontStyle = FontStyles.Bold;
+            eyebrow.fontWeight = FontWeight.Bold;
+            eyebrow.characterSpacing = 3f;
+            SetPreferredHeight(eyebrow.gameObject, 30f);
+
+            var greeting = CreateText(homeHeader.transform, "Greeting", "Hi, Explorer!", 48f, font, LearningUiTheme.Ink);
             greeting.fontStyle = FontStyles.Bold;
             greeting.fontWeight = FontWeight.Bold;
             greeting.overflowMode = TextOverflowModes.Overflow;
             SetPreferredHeight(greeting.gameObject, 62f);
             var subtitle = CreateText(
-                content.transform,
+                homeHeader.transform,
                 "Motivation",
                 "Learn languages by exploring the world.",
                 27f,
@@ -1127,7 +1145,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             var content = CreateScrollContent(panel.transform, "Quiz Content");
             m_QuizScrollRect = panel.GetComponent<ScrollRect>();
             var layout = content.GetComponent<VerticalLayoutGroup>();
-            layout.padding = new RectOffset(36, 36, 42, 44);
+            layout.padding = new RectOffset(36, 36, 55, 44);
             layout.spacing = 16f;
 
             var header = CreateHorizontalGroup(content.transform, "Quiz Header", 96f, 16f);
@@ -1154,7 +1172,11 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
             CreateQuizLanguageSelector(content.transform, font);
 
-            var questionCard = CreatePanel(content.transform, "Question Card", LearningUiTheme.Card, LearningUiTheme.RadiusLarge, 270f);
+            var questionArea = CreateVerticalGroup(content.transform, "Question Area", 0f);
+            var questionAreaLayout = questionArea.GetComponent<VerticalLayoutGroup>();
+            questionAreaLayout.padding = new RectOffset(0, 0, 10, 0);
+
+            var questionCard = CreatePanel(questionArea.transform, "Question Card", LearningUiTheme.Card, LearningUiTheme.RadiusLarge, 270f);
             m_QuizQuestionCard = questionCard.GetComponent<RectTransform>();
             LearningUiTheme.StyleSurface(questionCard.GetComponent<Image>(), LearningUiTheme.Card, LearningUiTheme.RadiusLarge, true, new Vector2(0f, -7f));
             var questionLayout = questionCard.AddComponent<VerticalLayoutGroup>();
@@ -1164,16 +1186,26 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             questionLayout.childControlHeight = true;
             questionLayout.childForceExpandWidth = true;
             questionLayout.childForceExpandHeight = false;
-            var questionCaption = CreateText(questionCard.transform, "Question Caption", "TRANSLATE THIS WORD", 19f, font, LearningUiTheme.Primary, TextAlignmentOptions.Center);
-            questionCaption.fontStyle = FontStyles.Bold;
-            SetPreferredHeight(questionCaption.gameObject, 34f);
-            m_QuizPromptText = CreateText(questionCard.transform, "Quiz Prompt", "Preparing question…", 40f, font, LearningUiTheme.Ink, TextAlignmentOptions.Center);
+            m_QuizQuestionCaptionText = CreateText(
+                questionCard.transform,
+                "Question Caption",
+                "TRANSLATE THIS LANGUAGE WORD",
+                20f,
+                font,
+                LearningUiTheme.Primary,
+                TextAlignmentOptions.Center);
+            m_QuizQuestionCaptionText.fontStyle = FontStyles.Bold;
+            m_QuizQuestionCaptionText.fontWeight = FontWeight.Bold;
+            m_QuizQuestionCaptionText.characterSpacing = 1.5f;
+            SetPreferredHeight(m_QuizQuestionCaptionText.gameObject, 38f);
+            m_QuizPromptText = CreateText(questionCard.transform, "Quiz Prompt", "PREPARING QUESTION…", 60f, font, LearningUiTheme.Ink, TextAlignmentOptions.Center);
             m_QuizPromptText.fontStyle = FontStyles.Bold;
+            m_QuizPromptText.fontWeight = FontWeight.Bold;
             m_QuizPromptText.textWrappingMode = TextWrappingModes.Normal;
             m_QuizPromptText.enableAutoSizing = true;
-            m_QuizPromptText.fontSizeMin = 27f;
-            m_QuizPromptText.fontSizeMax = 40f;
-            SetPreferredHeight(m_QuizPromptText.gameObject, 154f);
+            m_QuizPromptText.fontSizeMin = 38f;
+            m_QuizPromptText.fontSizeMax = 62f;
+            SetPreferredHeight(m_QuizPromptText.gameObject, 150f);
 
             m_QuizOptionButtons = new Button[QuizOptionCount];
             m_QuizOptionLabels = new TMP_Text[QuizOptionCount];

@@ -75,9 +75,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                     AddCircle(vertexHelper, center, size * 0.1f, 20);
                     break;
                 case LearningUiIconType.Translate:
-                    AddRing(vertexHelper, center, size * 0.31f, size * 0.26f, 30);
-                    AddLine(vertexHelper, center + new Vector2(-0.3f, 0f) * size, center + new Vector2(0.3f, 0f) * size, stroke * 0.7f);
-                    AddLine(vertexHelper, center + new Vector2(0f, -0.3f) * size, center + new Vector2(0f, 0.3f) * size, stroke * 0.7f);
+                    DrawLanguage(vertexHelper, center, size, stroke);
                     break;
                 case LearningUiIconType.Speak:
                     DrawSpeaker(vertexHelper, center, size, stroke);
@@ -168,6 +166,31 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             });
             AddArc(vertexHelper, center + new Vector2(0.03f, 0f) * size, size * 0.2f, -55f, 55f, stroke);
             AddArc(vertexHelper, center + new Vector2(0.03f, 0f) * size, size * 0.34f, -55f, 55f, stroke);
+        }
+
+        void DrawLanguage(VertexHelper vertexHelper, Vector2 center, float size, float stroke)
+        {
+            var languageStroke = stroke * 0.82f;
+            AddLine(
+                vertexHelper,
+                center + new Vector2(-0.04f, 0.36f) * size,
+                center + new Vector2(0.08f, 0.24f) * size,
+                languageStroke);
+            AddLine(
+                vertexHelper,
+                center + new Vector2(-0.32f, 0.15f) * size,
+                center + new Vector2(0.32f, 0.15f) * size,
+                languageStroke);
+            AddLine(
+                vertexHelper,
+                center + new Vector2(0f, 0.14f) * size,
+                center + new Vector2(-0.28f, -0.34f) * size,
+                languageStroke);
+            AddLine(
+                vertexHelper,
+                center + new Vector2(0f, 0.14f) * size,
+                center + new Vector2(0.3f, -0.34f) * size,
+                languageStroke);
         }
 
         void DrawSettings(VertexHelper vertexHelper, Vector2 center, float size, float stroke)

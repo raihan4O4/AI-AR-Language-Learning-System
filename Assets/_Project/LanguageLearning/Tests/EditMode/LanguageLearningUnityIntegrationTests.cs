@@ -64,6 +64,9 @@ namespace AIAR.LanguageLearning.Tests
             var quizButton = GameObject.Find("Quiz Button").GetComponent<Button>();
             Assert.IsTrue(mainMenu.interactable);
             Assert.IsTrue(mainMenu.blocksRaycasts);
+            Assert.AreEqual(
+                "READY TO EXPLORE",
+                GameObject.Find("Exploration Eyebrow").GetComponent<TMPro.TMP_Text>().text);
 
             quizButton.onClick.Invoke();
 
@@ -79,7 +82,16 @@ namespace AIAR.LanguageLearning.Tests
             Assert.IsNull(languageSelector.transform.Find("English Button"));
             Assert.IsFalse(nextButton.interactable, "Next must remain disabled until an answer is chosen.");
 
-            var firstPrompt = GameObject.Find("Quiz Prompt").GetComponent<TMPro.TMP_Text>().text;
+            var caption = GameObject.Find("Question Caption").GetComponent<TMPro.TMP_Text>();
+            var prompt = GameObject.Find("Quiz Prompt").GetComponent<TMPro.TMP_Text>();
+            StringAssert.StartsWith("TRANSLATE THIS ", caption.text);
+            StringAssert.EndsWith(" WORD", caption.text);
+            Assert.AreEqual(LearningUiTheme.Primary, caption.color);
+            Assert.AreEqual(prompt.text.ToUpperInvariant(), prompt.text);
+            Assert.AreEqual(TMPro.TextAlignmentOptions.Center, prompt.alignment);
+            Assert.AreEqual(TMPro.FontStyles.Bold, prompt.fontStyle);
+
+            var firstPrompt = prompt.text;
             GameObject.Find("Quiz Option 1 Button").GetComponent<Button>().onClick.Invoke();
             Assert.IsTrue(nextButton.interactable);
             nextButton.onClick.Invoke();
