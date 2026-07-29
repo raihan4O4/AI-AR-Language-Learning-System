@@ -34,9 +34,11 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
         const string PendingSetupPath = "Assets/_Project/LanguageLearning/Editor/SceneSetup/PENDING_MAIN_SCENE_SETUP.txt";
         const string SetupReportPath = "Logs/language-learning-scene-setup.log";
         const string FontAssetDirectory = "Assets/_Project/LanguageLearning/Content/Resources/Fonts/TMP";
+        const string GoogleSansFontPath = "Assets/_Project/LanguageLearning/Content/Resources/Fonts/GoogleSans-Regular.ttf";
         const string NotoSansFontPath = "Assets/_Project/LanguageLearning/Content/Resources/Fonts/NotoSans-Regular.ttf";
         const string NotoSansDevanagariFontPath = "Assets/_Project/LanguageLearning/Content/Resources/Fonts/NotoSansDevanagari-Regular.ttf";
         const string NotoSansMalayalamFontPath = "Assets/_Project/LanguageLearning/Content/Resources/Fonts/NotoSansMalayalam-Regular.ttf";
+        const string GoogleSansTmpPath = FontAssetDirectory + "/GoogleSans-Regular SDF.asset";
         const string NotoSansTmpPath = FontAssetDirectory + "/NotoSans-Regular SDF.asset";
         const string NotoSansDevanagariTmpPath = FontAssetDirectory + "/NotoSansDevanagari-Regular SDF.asset";
         const string NotoSansMalayalamTmpPath = FontAssetDirectory + "/NotoSansMalayalam-Regular SDF.asset";
@@ -45,6 +47,7 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
         {
             EnforcePortraitOrientation();
             EditorApplication.delayCall += RunPendingSetupIfRequested;
+            EditorApplication.delayCall += EnsureFontAssetsReady;
         }
 
         [MenuItem("AI-AR Language Learning/Setup Main Scene")]
@@ -110,6 +113,20 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
                 WriteReport("Scene setup failed:\n" + exception);
                 Debug.LogException(exception);
             }
+        }
+
+        static void EnsureFontAssetsReady()
+        {
+            if (EditorApplication.isCompiling || EditorApplication.isUpdating)
+            {
+                EditorApplication.delayCall += EnsureFontAssetsReady;
+                return;
+            }
+
+            if (!File.Exists(GoogleSansFontPath) || HasUsableAtlas(AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(GoogleSansTmpPath)))
+                return;
+
+            EnsureMultilingualFontAsset();
         }
 
         static void SetupMainScene()
@@ -226,18 +243,21 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
         {
             Directory.CreateDirectory(FontAssetDirectory);
 
-            var latin = EnsureTmpFontAsset(NotoSansFontPath, NotoSansTmpPath);
+            var latin = EnsureTmpFontAsset(GoogleSansFontPath, GoogleSansTmpPath);
+            var latinFallback = EnsureTmpFontAsset(NotoSansFontPath, NotoSansTmpPath);
             var devanagari = EnsureTmpFontAsset(NotoSansDevanagariFontPath, NotoSansDevanagariTmpPath);
             var malayalam = EnsureTmpFontAsset(NotoSansMalayalamFontPath, NotoSansMalayalamTmpPath);
 
             if (latin != null)
             {
+                AddFallback(latin, latinFallback);
                 AddFallback(latin, devanagari);
                 AddFallback(latin, malayalam);
                 EditorUtility.SetDirty(latin);
             }
 
             AddTmpSettingsFallback(latin);
+            AddTmpSettingsFallback(latinFallback);
             AddTmpSettingsFallback(devanagari);
             AddTmpSettingsFallback(malayalam);
 

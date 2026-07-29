@@ -34,6 +34,13 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         const int QuizOptionCount = 4;
         const string TotalLearningSecondsKey = "aiar.language-learning.total-seconds.v1";
 
+        static readonly LanguageCode[] QuizLanguages =
+        {
+            LanguageCode.Hindi,
+            LanguageCode.Malayalam,
+            LanguageCode.French
+        };
+
         [SerializeField]
         LearningSessionController m_SessionController;
 
@@ -526,12 +533,19 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 LearningUiTheme.WithAlpha(Color.white, 0.9f),
                 FontStyles.Normal);
 
-            var maximumActivity = Mathf.Max(1, activity.WeeklyActivity.DefaultIfEmpty(0).Max());
             for (var index = 0; index < m_WeeklyBars.Length && index < activity.WeeklyActivity.Length; index++)
             {
-                m_WeeklyBars[index].fillAmount = Mathf.Clamp01(activity.WeeklyActivity[index] / (float)maximumActivity);
+                var isCurrentDay = index == m_WeeklyBars.Length - 1;
+                m_WeeklyBars[index].color = isCurrentDay
+                    ? LearningUiTheme.Primary
+                    : LearningUiTheme.PrimarySoft;
                 if (index < m_WeeklyDayLabels.Length)
+                {
                     m_WeeklyDayLabels[index].text = DateTime.Now.AddDays(index - 6).ToString("ddd").Substring(0, 1);
+                    m_WeeklyDayLabels[index].color = isCurrentDay
+                        ? LearningUiTheme.PrimaryDark
+                        : LearningUiTheme.Muted;
+                }
             }
 
             if (m_ProgressSummaryText != null)
@@ -813,7 +827,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 return;
 
             var languages = (LanguageCode[])Enum.GetValues(typeof(LanguageCode));
-            RefreshLanguageButtonStyles(m_QuizLanguageButtons, languages);
+            RefreshLanguageButtonStyles(m_QuizLanguageButtons, QuizLanguages);
             RefreshLanguageButtonStyles(m_ScanLanguageButtons, languages);
         }
 
@@ -948,11 +962,12 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             var content = CreateScrollContent(navigation.transform, "Home Content");
             m_HomeScrollRect = navigation.GetComponent<ScrollRect>();
             var layout = content.GetComponent<VerticalLayoutGroup>();
-            layout.padding = new RectOffset(36, 36, 44, 48);
+            layout.padding = new RectOffset(36, 36, 64, 48);
             layout.spacing = 20f;
 
-            var greeting = CreateText(content.transform, "Greeting", "Hi, explorer!", 48f, font, LearningUiTheme.Ink);
+            var greeting = CreateText(content.transform, "Greeting", "Hi, Explorer!", 48f, font, LearningUiTheme.Ink);
             greeting.fontStyle = FontStyles.Bold;
+            greeting.fontWeight = FontWeight.Bold;
             greeting.overflowMode = TextOverflowModes.Overflow;
             SetPreferredHeight(greeting.gameObject, 62f);
             var subtitle = CreateText(
@@ -1207,11 +1222,10 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         void CreateQuizLanguageSelector(Transform parent, TMP_FontAsset font)
         {
             var selector = CreateHorizontalGroup(parent, "Quiz Language Selector", 64f, 10f, true);
-            var languages = (LanguageCode[])Enum.GetValues(typeof(LanguageCode));
-            m_QuizLanguageButtons = new Button[languages.Length];
-            for (var index = 0; index < languages.Length; index++)
+            m_QuizLanguageButtons = new Button[QuizLanguages.Length];
+            for (var index = 0; index < QuizLanguages.Length; index++)
             {
-                var language = languages[index];
+                var language = QuizLanguages[index];
                 var capturedLanguageIndex = (int)language;
                 m_QuizLanguageButtons[index] = CreateButton(
                     selector.transform,
@@ -1247,8 +1261,6 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             SetPreferredHeight(title.gameObject, 46f);
             var subtitle = CreateText(headerCopy.transform, "Progress Subtitle", "Every scan moves you forward", 21f, font, LearningUiTheme.Muted);
             SetPreferredHeight(subtitle.gameObject, 30f);
-            var refreshButton = CreateIconButton(header.transform, "Refresh", LearningUiIconType.Refresh, LearningUiTheme.PrimarySoft, LearningUiTheme.PrimaryDark, RefreshProgress, 80f);
-            SetPreferredWidth(refreshButton.gameObject, 80f);
 
             var levelCard = CreatePanel(content.transform, "Level Card", LearningUiTheme.Primary, LearningUiTheme.RadiusLarge, 238f);
             var levelLayout = levelCard.AddComponent<VerticalLayoutGroup>();
@@ -1636,12 +1648,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         {
             var column = CreateVerticalGroup(parent, $"Activity Day {index + 1}", 8f);
             var track = CreatePanel(column.transform, $"Activity Track {index + 1}", LearningUiTheme.PrimarySoft, 14f, 154f);
-            fill = CreatePanel(track.transform, $"Activity Fill {index + 1}", LearningUiTheme.Primary, 14f).GetComponent<Image>();
-            Stretch(fill.rectTransform, 0f);
-            fill.type = Image.Type.Filled;
-            fill.fillMethod = Image.FillMethod.Vertical;
-            fill.fillOrigin = 0;
-            fill.fillAmount = 0f;
+            fill = track.GetComponent<Image>();
             dayLabel = CreateText(column.transform, $"Activity Day Label {index + 1}", "M", 17f, font, LearningUiTheme.Muted, TextAlignmentOptions.Center);
             dayLabel.fontStyle = FontStyles.Bold;
             SetPreferredHeight(dayLabel.gameObject, 30f);

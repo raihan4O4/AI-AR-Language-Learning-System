@@ -73,9 +73,10 @@ namespace AIAR.LanguageLearning.Tests
             Assert.IsFalse(mainMenu.interactable);
             Assert.IsTrue(quizPanel.interactable);
             Assert.AreEqual(
-                System.Enum.GetValues(typeof(Domain.LanguageCode)).Length,
+                System.Enum.GetValues(typeof(Domain.LanguageCode)).Length - 1,
                 languageSelector.transform.childCount,
-                "Every supported quiz language must have a selector button.");
+                "The quiz selector should only list non-English target languages.");
+            Assert.IsNull(languageSelector.transform.Find("English Button"));
             Assert.IsFalse(nextButton.interactable, "Next must remain disabled until an answer is chosen.");
 
             var firstPrompt = GameObject.Find("Quiz Prompt").GetComponent<TMPro.TMP_Text>().text;
@@ -241,7 +242,7 @@ namespace AIAR.LanguageLearning.Tests
                 {
                     Domain.LanguageCode.Hindi => "NotoSansDevanagari-Regular SDF",
                     Domain.LanguageCode.Malayalam => "NotoSansMalayalam-Regular SDF",
-                    _ => "NotoSans-Regular SDF"
+                    _ => "GoogleSans-Regular SDF"
                 };
                 Assert.AreEqual(expectedFontName, translatedWordText.font.name);
 

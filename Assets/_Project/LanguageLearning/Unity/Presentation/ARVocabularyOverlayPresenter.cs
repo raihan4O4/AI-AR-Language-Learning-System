@@ -370,7 +370,8 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
         static class MultilingualFontProvider
         {
-            const string LatinFontResourcePath = "Fonts/TMP/NotoSans-Regular SDF";
+            const string LatinFontResourcePath = "Fonts/TMP/GoogleSans-Regular SDF";
+            const string LatinSourceFontResourcePath = "Fonts/GoogleSans-Regular";
             const string DevanagariFontResourcePath = "Fonts/TMP/NotoSansDevanagari-Regular SDF";
             const string MalayalamFontResourcePath = "Fonts/TMP/NotoSansMalayalam-Regular SDF";
 
@@ -397,7 +398,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 if (s_LatinFontAsset != null)
                     return;
 
-                s_LatinFontAsset = LoadFont(LatinFontResourcePath);
+                s_LatinFontAsset = LoadFont(LatinFontResourcePath, LatinSourceFontResourcePath);
                 s_DevanagariFontAsset = LoadFont(DevanagariFontResourcePath);
                 s_MalayalamFontAsset = LoadFont(MalayalamFontResourcePath);
                 if (s_LatinFontAsset == null)
@@ -407,9 +408,20 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 AddFallback(s_LatinFontAsset, s_MalayalamFontAsset);
             }
 
-            static TMP_FontAsset LoadFont(string resourcePath)
+            static TMP_FontAsset LoadFont(string resourcePath, string sourceFontResourcePath = null)
             {
                 var fontAsset = Resources.Load<TMP_FontAsset>(resourcePath);
+                if (fontAsset == null && !string.IsNullOrWhiteSpace(sourceFontResourcePath))
+                {
+                    var sourceFont = Resources.Load<Font>(sourceFontResourcePath);
+                    if (sourceFont != null)
+                    {
+                        fontAsset = TMP_FontAsset.CreateFontAsset(sourceFont);
+                        if (fontAsset != null)
+                            fontAsset.name = "GoogleSans-Regular SDF";
+                    }
+                }
+
                 if (fontAsset == null)
                 {
                     Debug.LogWarning(
