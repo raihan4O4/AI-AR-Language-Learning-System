@@ -47,6 +47,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         CanvasGroup m_HomeCanvasGroup;
         CanvasGroup m_ScanCanvasGroup;
         CanvasGroup m_VocabularyCanvasGroup;
+        ARVocabularyOverlayPresenter m_VocabularyPresenter;
         CanvasGroup m_QuizCanvasGroup;
         CanvasGroup m_ProgressCanvasGroup;
         TMP_Text m_StatusText;
@@ -85,10 +86,10 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         TMP_Text m_HomeStreakText;
         TMP_Text m_HomeLevelText;
         TMP_Text m_QuizXpText;
-        Image m_QuizProgressFill;
+        LearningPillGraphic m_QuizProgressFill;
         TMP_Text m_LevelText;
         TMP_Text m_XpProgressText;
-        Image m_LevelProgressFill;
+        LearningPillGraphic m_LevelProgressFill;
         TMP_Text m_WordsLearnedText;
         TMP_Text m_ObjectsScannedText;
         TMP_Text m_QuizAccuracyValueText;
@@ -96,13 +97,16 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         TMP_Text m_LearningTimeText;
         Image[] m_WeeklyBars = Array.Empty<Image>();
         TMP_Text[] m_WeeklyDayLabels = Array.Empty<TMP_Text>();
+        ScrollRect m_HomeScrollRect;
+        ScrollRect m_QuizScrollRect;
+        ScrollRect m_ProgressScrollRect;
         string m_LastTrackedScanVocabularyId;
 
         public string CurrentScreenName => m_CurrentScreen.ToString();
 
         void Awake()
         {
-            ConfigurePortraitPresentation();
+            LearningPortraitBootstrap.Apply();
             ResolveDependencies();
             EnsureUi();
             m_SessionSegmentStartedAt = Time.realtimeSinceStartup;
@@ -175,8 +179,9 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             SetVisible(m_QuizCanvasGroup, false);
             SetVisible(m_ProgressCanvasGroup, false);
             SetVisible(m_ScanCanvasGroup, true);
+            m_VocabularyPresenter?.SetScanDisplayEnabled(true);
             SetVisible(m_VocabularyCanvasGroup, m_SessionController?.CurrentVocabularyEntry != null);
-            SetVisible(m_StatusCanvasGroup, true);
+            SetVisible(m_StatusCanvasGroup, false);
             SetScanSpeakAvailable(false);
             RefreshLanguageButtonStyles();
             SetStatus("Point your camera at an everyday object");
@@ -197,9 +202,10 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             SetVisible(m_ScanCanvasGroup, false);
             SetVisible(m_QuizCanvasGroup, false);
             SetVisible(m_ProgressCanvasGroup, false);
-            SetVisible(m_VocabularyCanvasGroup, false);
+            m_VocabularyPresenter?.SetScanDisplayEnabled(false);
             SetVisible(m_StatusCanvasGroup, false);
             RefreshHomeSummary();
+            ResetScrollToTop(m_HomeScrollRect);
             AnimateScreenIn(m_HomeCanvasGroup, 22f);
         }
 
@@ -215,11 +221,12 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             SetAppBackgroundVisible(true);
             SetVisible(m_HomeCanvasGroup, false);
             SetVisible(m_ScanCanvasGroup, false);
-            SetVisible(m_VocabularyCanvasGroup, false);
+            m_VocabularyPresenter?.SetScanDisplayEnabled(false);
             SetVisible(m_ProgressCanvasGroup, false);
             SetVisible(m_StatusCanvasGroup, false);
             SetVisible(m_QuizCanvasGroup, true);
             StartQuiz();
+            ResetScrollToTop(m_QuizScrollRect);
             AnimateScreenIn(m_QuizCanvasGroup, 20f);
         }
 
@@ -235,11 +242,12 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             SetAppBackgroundVisible(true);
             SetVisible(m_HomeCanvasGroup, false);
             SetVisible(m_ScanCanvasGroup, false);
-            SetVisible(m_VocabularyCanvasGroup, false);
+            m_VocabularyPresenter?.SetScanDisplayEnabled(false);
             SetVisible(m_QuizCanvasGroup, false);
             SetVisible(m_StatusCanvasGroup, false);
             SetVisible(m_ProgressCanvasGroup, true);
             RefreshProgress();
+            ResetScrollToTop(m_ProgressScrollRect);
             AnimateScreenIn(m_ProgressCanvasGroup, 20f);
         }
 
@@ -405,8 +413,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             m_CurrentQuizEntry = null;
             m_QuizFeedbackText.text = string.Empty;
             m_QuizFeedbackText.color = LearningUiTheme.Muted;
-            if (m_QuizProgressFill != null)
-                m_QuizProgressFill.fillAmount = 0f;
+            SetRoundedFillAmount(m_QuizProgressFill, 0f);
             if (m_QuizXpText != null)
                 m_QuizXpText.text = "0 XP";
             SetNextQuestionButton(false, "Next question");
@@ -861,8 +868,10 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             var vocabularyPresenter = FindAnyObjectByType<ARVocabularyOverlayPresenter>();
             if (vocabularyPresenter != null)
             {
+                m_VocabularyPresenter = vocabularyPresenter;
                 vocabularyPresenter.transform.SetParent(m_SafeAreaRoot, false);
                 vocabularyPresenter.ApplyModernLayout();
+                vocabularyPresenter.SetScanDisplayEnabled(false);
                 m_VocabularyCanvasGroup = vocabularyPresenter.GetComponent<CanvasGroup>();
             }
 
@@ -872,7 +881,6 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             CreateScanControls(font);
             CreateQuizPanel(font);
             CreateProgressPanel(font);
-            CreateStatus(font);
             m_Built = true;
         }
 
@@ -888,24 +896,15 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             return canvas;
         }
 
-        static void ConfigurePortraitPresentation()
-        {
-            Screen.autorotateToPortrait = true;
-            Screen.autorotateToPortraitUpsideDown = false;
-            Screen.autorotateToLandscapeLeft = false;
-            Screen.autorotateToLandscapeRight = false;
-            Screen.orientation = ScreenOrientation.Portrait;
-        }
-
         static void ConfigureCanvas(Canvas canvas)
         {
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = 100;
             var scaler = canvas.GetComponent<CanvasScaler>() ?? canvas.gameObject.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1080f, 1920f);
+            scaler.referenceResolution = new Vector2(1080f, 1440f);
             scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-            scaler.matchWidthOrHeight = 0f;
+            scaler.matchWidthOrHeight = 1f;
             scaler.referencePixelsPerUnit = 100f;
         }
 
@@ -931,11 +930,11 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 LearningUiTheme.RadiusPill);
             m_StatusCanvasGroup = statusObject.GetComponent<CanvasGroup>();
             var rect = statusObject.GetComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 1f);
-            rect.anchorMax = new Vector2(0.5f, 1f);
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
             rect.pivot = new Vector2(0.5f, 1f);
             rect.anchoredPosition = new Vector2(0f, -424f);
-            rect.sizeDelta = new Vector2(680f, 64f);
+            rect.sizeDelta = new Vector2(-80f, 64f);
             m_StatusText = CreateText(statusObject.transform, "Status", "Point your camera at an object", 22f, font, LearningUiTheme.Card, TextAlignmentOptions.Center);
             Stretch(m_StatusText.rectTransform, 18f);
             SetVisible(m_StatusCanvasGroup, false);
@@ -947,23 +946,24 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             m_HomeCanvasGroup = navigation.GetComponent<CanvasGroup>();
 
             var content = CreateScrollContent(navigation.transform, "Home Content");
+            m_HomeScrollRect = navigation.GetComponent<ScrollRect>();
             var layout = content.GetComponent<VerticalLayoutGroup>();
-            layout.padding = new RectOffset(44, 44, 48, 36);
-            layout.spacing = 16f;
+            layout.padding = new RectOffset(36, 36, 44, 48);
+            layout.spacing = 20f;
 
-            var header = CreateVerticalGroup(content.transform, "Home Header", 4f, 132f);
-            var greeting = CreateText(header.transform, "Greeting", "Hi, explorer!", 48f, font, LearningUiTheme.Ink);
+            var greeting = CreateText(content.transform, "Greeting", "Hi, explorer!", 48f, font, LearningUiTheme.Ink);
             greeting.fontStyle = FontStyles.Bold;
-            SetPreferredHeight(greeting.gameObject, 58f);
+            greeting.overflowMode = TextOverflowModes.Overflow;
+            SetPreferredHeight(greeting.gameObject, 62f);
             var subtitle = CreateText(
-                header.transform,
+                content.transform,
                 "Motivation",
                 "Learn languages by exploring the world.",
                 27f,
                 font,
                 LearningUiTheme.Muted);
             subtitle.textWrappingMode = TextWrappingModes.Normal;
-            SetPreferredHeight(subtitle.gameObject, 54f);
+            SetPreferredHeight(subtitle.gameObject, 50f);
 
             var todayCard = CreatePanel(content.transform, "Today Card", LearningUiTheme.PrimarySoft, LearningUiTheme.RadiusLarge, 146f);
             var todayLayout = todayCard.AddComponent<HorizontalLayoutGroup>();
@@ -1110,15 +1110,17 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             var panel = CreateScreenRoot("Quiz Panel");
             m_QuizCanvasGroup = panel.GetComponent<CanvasGroup>();
             var content = CreateScrollContent(panel.transform, "Quiz Content");
+            m_QuizScrollRect = panel.GetComponent<ScrollRect>();
             var layout = content.GetComponent<VerticalLayoutGroup>();
-            layout.padding = new RectOffset(40, 40, 34, 36);
-            layout.spacing = 14f;
+            layout.padding = new RectOffset(36, 36, 42, 44);
+            layout.spacing = 16f;
 
-            var header = CreateHorizontalGroup(content.transform, "Quiz Header", 80f, 14f);
-            var backButton = CreateIconButton(header.transform, "Back", LearningUiIconType.Back, LearningUiTheme.Card, LearningUiTheme.Ink, ShowHome, 72f);
-            SetPreferredWidth(backButton.gameObject, 72f);
+            var header = CreateHorizontalGroup(content.transform, "Quiz Header", 96f, 16f);
+            var backButton = CreateIconButton(header.transform, "Back", LearningUiIconType.Back, LearningUiTheme.Card, LearningUiTheme.Ink, ShowHome, 88f);
+            SetPreferredWidth(backButton.gameObject, 88f);
             var headerText = CreateVerticalGroup(header.transform, "Quiz Header Text", 0f);
             SetFlexibleWidth(headerText, 1f);
+            SetPreferredHeight(headerText, 80f);
             var title = CreateText(headerText.transform, "Quiz Title", "Quick quiz", 34f, font, LearningUiTheme.Ink);
             title.fontStyle = FontStyles.Bold;
             SetPreferredHeight(title.gameObject, 44f);
@@ -1130,13 +1132,10 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             m_QuizXpText.fontStyle = FontStyles.Bold;
             Stretch(m_QuizXpText.rectTransform, 8f);
 
-            var progressTrack = CreatePanel(content.transform, "Quiz Progress", LearningUiTheme.Line, LearningUiTheme.RadiusPill, 18f);
-            m_QuizProgressFill = CreatePanel(progressTrack.transform, "Quiz Progress Fill", LearningUiTheme.Primary, LearningUiTheme.RadiusPill).GetComponent<Image>();
-            Stretch(m_QuizProgressFill.rectTransform, 0f);
-            m_QuizProgressFill.type = Image.Type.Filled;
-            m_QuizProgressFill.fillMethod = Image.FillMethod.Horizontal;
-            m_QuizProgressFill.fillOrigin = 0;
-            m_QuizProgressFill.fillAmount = 0f;
+            var progressTrack = CreatePill(content.transform, "Quiz Progress", LearningUiTheme.Line, 18f);
+            m_QuizProgressFill = CreatePill(progressTrack.transform, "Quiz Progress Fill", LearningUiTheme.Primary)
+                .GetComponent<LearningPillGraphic>();
+            SetRoundedFillAmount(m_QuizProgressFill, 0f);
 
             CreateQuizLanguageSelector(content.transform, font);
 
@@ -1232,22 +1231,24 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             var panel = CreateScreenRoot("Progress Panel");
             m_ProgressCanvasGroup = panel.GetComponent<CanvasGroup>();
             var content = CreateScrollContent(panel.transform, "Progress Content");
+            m_ProgressScrollRect = panel.GetComponent<ScrollRect>();
             var layout = content.GetComponent<VerticalLayoutGroup>();
-            layout.padding = new RectOffset(40, 40, 34, 48);
-            layout.spacing = 18f;
+            layout.padding = new RectOffset(36, 36, 42, 52);
+            layout.spacing = 20f;
 
-            var header = CreateHorizontalGroup(content.transform, "Progress Header", 80f, 14f);
-            var backButton = CreateIconButton(header.transform, "Back", LearningUiIconType.Back, LearningUiTheme.Card, LearningUiTheme.Ink, ShowHome, 72f);
-            SetPreferredWidth(backButton.gameObject, 72f);
+            var header = CreateHorizontalGroup(content.transform, "Progress Header", 96f, 16f);
+            var backButton = CreateIconButton(header.transform, "Back", LearningUiIconType.Back, LearningUiTheme.Card, LearningUiTheme.Ink, ShowHome, 88f);
+            SetPreferredWidth(backButton.gameObject, 88f);
             var headerCopy = CreateVerticalGroup(header.transform, "Progress Header Copy", 0f);
             SetFlexibleWidth(headerCopy, 1f);
+            SetPreferredHeight(headerCopy, 80f);
             var title = CreateText(headerCopy.transform, "Progress Title", "Your progress", 38f, font, LearningUiTheme.Ink);
             title.fontStyle = FontStyles.Bold;
             SetPreferredHeight(title.gameObject, 46f);
             var subtitle = CreateText(headerCopy.transform, "Progress Subtitle", "Every scan moves you forward", 21f, font, LearningUiTheme.Muted);
             SetPreferredHeight(subtitle.gameObject, 30f);
-            var refreshButton = CreateIconButton(header.transform, "Refresh", LearningUiIconType.Refresh, LearningUiTheme.PrimarySoft, LearningUiTheme.PrimaryDark, RefreshProgress, 72f);
-            SetPreferredWidth(refreshButton.gameObject, 72f);
+            var refreshButton = CreateIconButton(header.transform, "Refresh", LearningUiIconType.Refresh, LearningUiTheme.PrimarySoft, LearningUiTheme.PrimaryDark, RefreshProgress, 80f);
+            SetPreferredWidth(refreshButton.gameObject, 80f);
 
             var levelCard = CreatePanel(content.transform, "Level Card", LearningUiTheme.Primary, LearningUiTheme.RadiusLarge, 238f);
             var levelLayout = levelCard.AddComponent<VerticalLayoutGroup>();
@@ -1263,6 +1264,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             CreateIcon(levelIconBubble.transform, LearningUiIconType.Trophy, Color.white, 44f);
             var levelCopy = CreateVerticalGroup(levelTop.transform, "Level Copy", 0f);
             SetFlexibleWidth(levelCopy, 1f);
+            SetPreferredHeight(levelCopy, 82f);
             m_LevelText = CreateText(levelCopy.transform, "Level Value", "Level 1", 38f, font, Color.white);
             m_LevelText.fontStyle = FontStyles.Bold;
             SetPreferredHeight(m_LevelText.gameObject, 46f);
@@ -1271,22 +1273,21 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             m_XpProgressText = CreateText(levelCard.transform, "XP Progress", "0 / 250 XP", 21f, font, Color.white);
             m_XpProgressText.fontStyle = FontStyles.Bold;
             SetPreferredHeight(m_XpProgressText.gameObject, 34f);
-            var levelTrack = CreatePanel(levelCard.transform, "Level Progress", LearningUiTheme.WithAlpha(Color.white, 0.28f), LearningUiTheme.RadiusPill, 22f);
-            m_LevelProgressFill = CreatePanel(levelTrack.transform, "Level Progress Fill", Color.white, LearningUiTheme.RadiusPill).GetComponent<Image>();
-            Stretch(m_LevelProgressFill.rectTransform, 0f);
-            m_LevelProgressFill.type = Image.Type.Filled;
-            m_LevelProgressFill.fillMethod = Image.FillMethod.Horizontal;
-            m_LevelProgressFill.fillAmount = 0f;
+            var levelTrack = CreatePill(levelCard.transform, "Level Progress", LearningUiTheme.WithAlpha(Color.white, 0.28f), 22f);
+            m_LevelProgressFill = CreatePill(levelTrack.transform, "Level Progress Fill", Color.white)
+                .GetComponent<LearningPillGraphic>();
+            SetRoundedFillAmount(m_LevelProgressFill, 0f);
 
             var statsGrid = new GameObject("Progress Stats", typeof(RectTransform), typeof(LayoutElement), typeof(GridLayoutGroup));
             statsGrid.transform.SetParent(content.transform, false);
             SetPreferredHeight(statsGrid, 358f);
             var grid = statsGrid.GetComponent<GridLayoutGroup>();
-            grid.cellSize = new Vector2(481f, 170f);
+            grid.cellSize = new Vector2(260f, 170f);
             grid.spacing = new Vector2(18f, 18f);
             grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
             grid.constraintCount = 2;
             grid.childAlignment = TextAnchor.UpperCenter;
+            statsGrid.AddComponent<LearningResponsiveGrid>().Configure(2, 18f, 170f);
             CreateStatCard(statsGrid.transform, "Words learned", LearningUiIconType.Star, LearningUiTheme.Primary, LearningUiTheme.PrimarySoft, out m_WordsLearnedText, font);
             CreateStatCard(statsGrid.transform, "Objects scanned", LearningUiIconType.Camera, LearningUiTheme.Secondary, LearningUiTheme.SecondarySoft, out m_ObjectsScannedText, font);
             CreateStatCard(statsGrid.transform, "Quiz accuracy", LearningUiIconType.Quiz, LearningUiTheme.Lavender, LearningUiTheme.LavenderSoft, out m_QuizAccuracyValueText, font);
@@ -1323,6 +1324,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             CreateIcon(achievementIcon.transform, LearningUiIconType.Trophy, Color.white, 58f);
             var achievementCopy = CreateVerticalGroup(achievementCard.transform, "Achievement Copy", 4f);
             SetFlexibleWidth(achievementCopy, 1f);
+            SetPreferredHeight(achievementCopy, 128f);
             var achievementTitle = CreateText(achievementCopy.transform, "Achievement Title", "Recent achievement", 21f, font, LearningUiTheme.Warning);
             achievementTitle.fontStyle = FontStyles.Bold;
             SetPreferredHeight(achievementTitle.gameObject, 36f);
@@ -1660,6 +1662,22 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             return panel;
         }
 
+        static GameObject CreatePill(
+            Transform parent,
+            string name,
+            Color color,
+            float height = -1f)
+        {
+            var pill = new GameObject(name, typeof(RectTransform), typeof(CanvasGroup), typeof(LearningPillGraphic));
+            pill.transform.SetParent(parent, false);
+            var graphic = pill.GetComponent<LearningPillGraphic>();
+            graphic.color = color;
+            graphic.raycastTarget = false;
+            if (height > 0f)
+                SetPreferredHeight(pill, height);
+            return pill;
+        }
+
         static TMP_Text CreateText(
             Transform parent,
             string name,
@@ -1864,7 +1882,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             target.localScale = Vector3.one;
         }
 
-        void AnimateFill(Image fill, float targetAmount)
+        void AnimateFill(LearningPillGraphic fill, float targetAmount)
         {
             if (fill == null)
                 return;
@@ -1872,25 +1890,42 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             targetAmount = Mathf.Clamp01(targetAmount);
             if (!UnityEngine.Application.isPlaying)
             {
-                fill.fillAmount = targetAmount;
+                SetRoundedFillAmount(fill, targetAmount);
                 return;
             }
 
             StartCoroutine(AnimateFillRoutine(fill, targetAmount));
         }
 
-        static IEnumerator AnimateFillRoutine(Image fill, float targetAmount)
+        static IEnumerator AnimateFillRoutine(LearningPillGraphic fill, float targetAmount)
         {
-            var startAmount = fill.fillAmount;
+            var startAmount = fill.rectTransform.anchorMax.x;
             var elapsed = 0f;
             const float duration = 0.34f;
             while (elapsed < duration)
             {
                 elapsed += Time.unscaledDeltaTime;
-                fill.fillAmount = Mathf.Lerp(startAmount, targetAmount, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / duration)));
+                SetRoundedFillAmount(
+                    fill,
+                    Mathf.Lerp(startAmount, targetAmount, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / duration))));
                 yield return null;
             }
-            fill.fillAmount = targetAmount;
+            SetRoundedFillAmount(fill, targetAmount);
+        }
+
+        static void SetRoundedFillAmount(LearningPillGraphic fill, float amount)
+        {
+            if (fill == null)
+                return;
+
+            amount = Mathf.Clamp01(amount);
+            var rect = fill.rectTransform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = new Vector2(amount, 1f);
+            rect.pivot = new Vector2(0f, 0.5f);
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            fill.enabled = amount > 0.001f;
         }
 
         void ShowXpBurst(int amount)
@@ -1967,6 +2002,16 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             text.alpha = 1f;
             text.enabled = true;
             text.fontStyle = fontStyle;
+        }
+
+        static void ResetScrollToTop(ScrollRect scrollRect)
+        {
+            if (scrollRect?.content == null)
+                return;
+
+            scrollRect.StopMovement();
+            scrollRect.verticalNormalizedPosition = 1f;
+            scrollRect.content.anchoredPosition = new Vector2(scrollRect.content.anchoredPosition.x, 0f);
         }
 
         static void Stretch(RectTransform rect, float inset)

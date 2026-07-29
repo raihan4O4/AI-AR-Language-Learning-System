@@ -34,6 +34,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         Vector2 m_RestingPosition;
         Coroutine m_ShowAnimation;
         bool m_ModernLayoutApplied;
+        bool m_ScanDisplayEnabled;
 
         string m_LastTranslatedWord;
         LanguageCode? m_LastTranslatedLanguage;
@@ -74,7 +75,6 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 : LanguageCode.English;
             var translatedValue = translatedWord ?? string.Empty;
 
-            SetVisible(true);
             UpdateTranslatedWord(translatedValue, language);
 
             if (m_SourceWordText != null)
@@ -85,6 +85,14 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
             if (m_LanguageText != null)
                 m_LanguageText.text = $"{languageName ?? "Language"} translation";
+
+            if (!m_ScanDisplayEnabled)
+            {
+                SetVisible(false);
+                return;
+            }
+
+            SetVisible(true);
 
             if (wasHidden && UnityEngine.Application.isPlaying)
             {
@@ -97,6 +105,13 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         public void Hide()
         {
             SetVisible(false);
+        }
+
+        public void SetScanDisplayEnabled(bool enabled)
+        {
+            m_ScanDisplayEnabled = enabled;
+            if (!enabled)
+                Hide();
         }
 
         public void ApplyModernLayout()

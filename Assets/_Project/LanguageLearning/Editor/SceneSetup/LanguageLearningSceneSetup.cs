@@ -43,6 +43,7 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
 
         static LanguageLearningSceneSetup()
         {
+            EnforcePortraitOrientation();
             EditorApplication.delayCall += RunPendingSetupIfRequested;
         }
 
@@ -203,16 +204,22 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
         {
             PlayerSettings.productName = "AI AR Language Learning";
             PlayerSettings.bundleVersion = "0.1.0";
-            PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
-            PlayerSettings.allowedAutorotateToPortrait = true;
-            PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
-            PlayerSettings.allowedAutorotateToLandscapeLeft = false;
-            PlayerSettings.allowedAutorotateToLandscapeRight = false;
+            EnforcePortraitOrientation();
+            PlayerSettings.Android.resizeableActivity = false;
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.raihan.aiarlanguagelearning");
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel25;
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
             EditorUserBuildSettings.buildAppBundle = false;
+        }
+
+        public static void EnforcePortraitOrientation()
+        {
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
+            PlayerSettings.allowedAutorotateToPortrait = true;
+            PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
+            PlayerSettings.allowedAutorotateToLandscapeLeft = false;
+            PlayerSettings.allowedAutorotateToLandscapeRight = false;
         }
 
         static TMP_FontAsset EnsureMultilingualFontAsset()
@@ -453,9 +460,9 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
 
             var scaler = canvasRoot.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1080f, 1920f);
+            scaler.referenceResolution = new Vector2(1080f, 1440f);
             scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-            scaler.matchWidthOrHeight = 0f;
+            scaler.matchWidthOrHeight = 1f;
 
             canvasRoot.AddComponent<GraphicRaycaster>();
 
@@ -604,6 +611,20 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
             Directory.CreateDirectory(Path.GetDirectoryName(SetupReportPath) ?? ".");
             File.WriteAllText(SetupReportPath, report);
             Debug.Log(report);
+        }
+    }
+
+    public sealed class LanguageLearningPortraitBuildProcessor : IPreprocessBuildWithReport
+    {
+        public int callbackOrder => -1000;
+
+        public void OnPreprocessBuild(BuildReport report)
+        {
+            if (report.summary.platform != BuildTarget.Android)
+                return;
+
+            LanguageLearningSceneSetup.EnforcePortraitOrientation();
+            PlayerSettings.Android.resizeableActivity = false;
         }
     }
 }
