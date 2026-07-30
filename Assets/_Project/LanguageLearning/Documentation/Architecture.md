@@ -161,12 +161,16 @@ that AR caused a learning improvement. A causal effectiveness claim would requir
 or non-AR comparison design. Pronunciation playback is engagement evidence only; it is not pronunciation
 accuracy because the MVP has no speech-assessment model.
 
-## Font Note
+## Font And Shaping Note
 
-Hindi and Malayalam use pre-generated Noto Sans TextMeshPro assets under
-`Content/Resources/Fonts/TMP`. The Latin asset contains persisted Devanagari and Malayalam fallback
-references. Keeping these as imported assets, rather than transient runtime-generated font objects,
-also keeps TextMesh Pro's Android pre-build scan deterministic.
+The UI remains one UGUI hierarchy. Google Sans and the script-specific Noto fonts are bundled under
+`Content/Resources/Fonts`, with persisted TMP fallbacks under its `TMP` subfolder. Glyph coverage alone
+is not sufficient for Indic scripts: Devanagari and Malayalam require contextual substitutions and mark
+reordering. `NativeIndicText` therefore switches labels containing those scripts to the pinned UniText
+UGUI `MaskableGraphic`, which shapes with HarfBuzz and FreeType. The native graphic is a stretched child
+of the original TMP `RectTransform`, so it inherits the same button, layout group, `ScrollRect`, masks,
+`CanvasGroup`, animation, and world-space canvas. It is not a screen-coordinate overlay. Latin and French
+labels stay on the original TMP rendering path.
 
 ## MVP Acceptance Checklist
 
@@ -174,6 +178,7 @@ also keeps TextMesh Pro's Android pre-build scan deterministic.
 - The official YOLO11n COCO export imports with exact input `[1,3,320,320]` and output `[1,84,2100]`.
 - The detector uses GPU display-oriented preprocessing, layer-budgeted inference, non-blocking readback, explicit decoding, class-aware NMS, and temporal stabilization.
 - AR overlay shows translated word, English source word, phonetic hint, and language name.
+- Entering Scan clears the transient object card and boxes without resetting progress or language.
 - A world-space label is placed through AR raycasting when a plane/feature point is available.
 - Scan always exposes English, Hindi, Malayalam, and French selectors plus Back and Speak controls.
 - Speak calls TTS for the current detected word in the selected language and records an attempt.

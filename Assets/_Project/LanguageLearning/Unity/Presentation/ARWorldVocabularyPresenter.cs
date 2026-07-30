@@ -177,6 +177,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             m_LabelText.textWrappingMode = TextWrappingModes.NoWrap;
             m_LabelText.overflowMode = TextOverflowModes.Truncate;
             m_LabelText.raycastTarget = false;
+            NativeIndicText.Track(m_LabelText);
             m_LabelRoot.SetActive(false);
         }
     }

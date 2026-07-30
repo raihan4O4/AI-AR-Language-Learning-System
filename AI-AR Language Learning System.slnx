@@ -1,4 +1,4 @@
-﻿<Solution>
+<Solution>
   <Project Path="AIAR.LanguageLearning.Unity.csproj" />
   <Project Path="Unity.XR.Interaction.Toolkit.Samples.StarterAssets.csproj" />
   <Project Path="Unity.XR.Interaction.Toolkit.Samples.ARStarterAssets.csproj" />
@@ -8,5 +8,5 @@
   <Project Path="Unity.XR.Interaction.Toolkit.Samples.ARStarterAssets.Editor.csproj" />
   <Project Path="AIAR.LanguageLearning.EditModeTests.csproj" />
   <Project Path="Unity.XR.Interaction.Toolkit.Samples.StarterAssets.Editor.csproj" />
-  <Project Path="Assembly-CSharp-Editor.csproj" />
+  <Project Path="AIAR.LanguageLearning.Editor.csproj" />
 </Solution>

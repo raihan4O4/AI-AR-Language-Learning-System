@@ -6,7 +6,8 @@ The learner UI uses **Unity UGUI**, not UI Toolkit.
 
 - Rendering: `Canvas` in `ScreenSpaceOverlay` mode
 - Controls and layout: `Image`, `Button`, `ScrollRect`, `VerticalLayoutGroup`, `HorizontalLayoutGroup`, `GridLayoutGroup`, `LayoutElement`, and `ContentSizeFitter`
-- Text: TextMesh Pro (`TextMeshProUGUI` / `TMP_FontAsset`)
+- Text: TextMesh Pro (`TextMeshProUGUI` / `TMP_FontAsset`) for Latin text and a native UniText UGUI
+  `MaskableGraphic` for HarfBuzz-shaped Devanagari and Malayalam
 - Responsive scaling: `CanvasScaler` with a `1080 x 1440` reference resolution and height matching
 - Device cutouts: `LearningSafeAreaFitter` applies `Screen.safeArea`
 - Rounded progress bars: custom `LearningPillGraphic`
@@ -35,7 +36,7 @@ ARVocabularyOverlayPresenter
   -> multilingual font selection
 
 LanguageLearningSceneSetup
-  -> deterministic scene wiring and TMP font-asset generation
+  -> deterministic scene wiring plus TMP and UniText font-asset generation
 ```
 
 The main scene contains the AR/runtime services, but the learner-facing screen hierarchy is rebuilt by `LearningMvpController.EnsureUi()`. Avoid relying on manual scene edits for Home, Scan, Quiz, or Progress because those edits will not be the source of truth.
@@ -87,7 +88,11 @@ greeting.fontStyle = FontStyles.Bold;
 
 Change the numeric value (`48f`) for the font size. Use `FontStyles.Bold`, `FontStyles.Italic`, or `FontStyles.Normal` for emphasis.
 
-The primary Latin font is Google Sans. Hindi and Malayalam retain Noto Sans fallbacks. Font files live under:
+The primary Latin font is Google Sans. Hindi and Malayalam retain Noto Sans source fonts and TMP
+fallbacks. At runtime, `NativeIndicText` detects those two Unicode ranges and switches the affected label
+to a UniText child graphic backed by HarfBuzz and FreeType. That child uses the same `RectTransform` tree,
+so buttons, scrolling, masks, fading, scaling, and world-space placement work exactly as they do for Latin
+labels. Font files live under:
 
 `Assets/_Project/LanguageLearning/Content/Resources/Fonts`
 
@@ -95,8 +100,13 @@ To replace the primary font, update both:
 
 - Font paths in `LanguageLearningSceneSetup.cs`
 - Resource paths in `ARVocabularyOverlayPresenter.MultilingualFontProvider`
+- Native shaping resource paths in `NativeIndicText`
 
 Keep script-specific fallback fonts unless the replacement font supports all required Devanagari and Malayalam glyphs.
+
+The UniText dependency is pinned in `Packages/manifest.json`. Do not replace the in-hierarchy graphic
+with a `UIDocument` or coordinate-mirrored overlay; Unity's Advanced Text Generator is UI Toolkit-only,
+and a separate visual tree will not naturally inherit UGUI layout or `ScrollRect` clipping.
 
 ### Colors, corners, and shadows
 

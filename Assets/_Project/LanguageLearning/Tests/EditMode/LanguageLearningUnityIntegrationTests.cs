@@ -369,6 +369,204 @@ namespace AIAR.LanguageLearning.Tests
         }
 
         [Test]
+        public void ScanObjectDisplay_ResetClearsTransientPresentationWithoutChangingLanguage()
+        {
+            EditorSceneManager.OpenScene(MainScenePath, OpenSceneMode.Single);
+
+            var session = Object.FindAnyObjectByType<LearningSessionController>();
+            var repository = Object.FindAnyObjectByType<ResourcesVocabularyRepository>();
+            var presenter = Object.FindAnyObjectByType<ARVocabularyOverlayPresenter>();
+            var mvp = Object.FindAnyObjectByType<LearningMvpController>();
+            Assert.IsNotNull(session);
+            Assert.IsNotNull(repository);
+            Assert.IsNotNull(presenter);
+            Assert.IsNotNull(mvp);
+
+            typeof(ARVocabularyOverlayPresenter)
+                .GetMethod("SubscribeToSession", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                ?.Invoke(presenter, null);
+            presenter.SetScanDisplayEnabled(true);
+
+            Assert.IsTrue(repository.TryGetById("book", out var entry));
+            var publishVocabulary = typeof(LearningSessionController).GetMethod(
+                "PublishVocabulary",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.IsNotNull(publishVocabulary);
+            publishVocabulary.Invoke(
+                session,
+                new object[]
+                {
+                    entry,
+                    "book",
+                    0.9f,
+                    NormalizedBoundingBox.Centered(0.5f, 0.5f),
+                    false
+                });
+
+            Assert.IsNotNull(session.CurrentVocabularyEntry);
+            var selectedLanguage = session.LearningLanguage;
+
+            mvp.ShowScan();
+
+            Assert.IsNull(session.CurrentVocabularyEntry);
+            Assert.AreEqual(selectedLanguage, session.LearningLanguage);
+            var presenterObject = new SerializedObject(presenter);
+            foreach (var propertyName in new[]
+                     {
+                         "m_TranslatedWordText",
+                         "m_SourceWordText",
+                         "m_PhoneticHintText",
+                         "m_LanguageText"
+                     })
+            {
+                var text = (TMPro.TMP_Text)presenterObject.FindProperty(propertyName).objectReferenceValue;
+                Assert.IsNotNull(text);
+                Assert.IsEmpty(text.text, $"{propertyName} retained the previous object display.");
+            }
+
+            var canvasGroup = (CanvasGroup)presenterObject.FindProperty("m_CanvasGroup").objectReferenceValue;
+            Assert.IsNotNull(canvasGroup);
+            Assert.AreEqual(0f, canvasGroup.alpha);
+        }
+
+        [Test]
+        public void NativeIndicText_UsesHarfBuzzGraphicOnlyForIndicScripts()
+        {
+            Assert.IsTrue(NativeIndicText.RequiresShaping("\u0915\u093F\u0924\u093E\u092C"));
+            Assert.IsTrue(NativeIndicText.RequiresShaping("\u0D2A\u0D41\u0D38\u0D4D\u0D24\u0D15\u0D02"));
+            Assert.IsTrue(NativeIndicText.RequiresShaping("Answer: \u0915\u0941\u0930\u094D\u0938\u0940"));
+            Assert.IsFalse(NativeIndicText.RequiresShaping("book"));
+            Assert.IsFalse(NativeIndicText.RequiresShaping("t\u00E9l\u00E9phone"));
+            Assert.IsFalse(NativeIndicText.RequiresShaping(string.Empty));
+            Assert.IsTrue(typeof(MaskableGraphic).IsAssignableFrom(NativeIndicText.NativeGraphicType));
+        }
+
+        [Test]
+        public void NativeIndicText_HasGeneratedDevanagariAndMalayalamResources()
+        {
+            const string fontRoot = "Assets/_Project/LanguageLearning/Content/Resources/Fonts/UniText/";
+            foreach (var assetName in new[]
+                     {
+                         "NotoSans-Regular.asset",
+                         "NotoSansDevanagari-Regular.asset",
+                         "NotoSansMalayalam-Regular.asset",
+                         "IndicFontStack.asset",
+                         "IndicAppearance.asset"
+                     })
+            {
+                Assert.IsNotNull(
+                    AssetDatabase.LoadMainAssetAtPath(fontRoot + assetName),
+                    $"Missing generated native text asset: {assetName}");
+            }
+
+            Assert.IsNotNull(Resources.Load("Fonts/UniText/IndicFontStack"));
+            Assert.IsNotNull(Resources.Load("Fonts/UniText/IndicAppearance"));
+            Assert.IsTrue(
+                NativeIndicText.UsesFaceOnlyAppearance(),
+                "Indic text should use one face-only rendering pass without outline or underlay.");
+        }
+
+        [Test]
+        public void NativeIndicText_RemainsInSourceHierarchyAndRestoresTmpForLatin()
+        {
+            var root = new GameObject("Native text test root", typeof(RectTransform));
+            var sourceObject = new GameObject(
+                "Answer label",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(TMPro.TextMeshProUGUI));
+            sourceObject.transform.SetParent(root.transform, false);
+
+            try
+            {
+                var source = sourceObject.GetComponent<TMPro.TextMeshProUGUI>();
+                source.text = "\u0D2A\u0D41\u0D38\u0D4D\u0D24\u0D15\u0D02";
+                source.fontSize = 32f;
+                source.alignment = TMPro.TextAlignmentOptions.Center;
+
+                var adapter = sourceObject.AddComponent<NativeIndicTextAdapter>();
+                adapter.Configure(source);
+
+                var nativeChild = sourceObject.transform.Find("Native Indic Text");
+                Assert.IsNotNull(nativeChild, "The shaped graphic was not created as a UGUI child.");
+                Assert.AreSame(sourceObject.transform, nativeChild.parent);
+                var nativeGraphic = (Graphic)nativeChild.GetComponent(NativeIndicText.NativeGraphicType);
+                Assert.IsNotNull(nativeGraphic);
+                Assert.IsFalse(nativeGraphic.raycastTarget, "The native label must not intercept button clicks.");
+                Assert.IsFalse(nativeChild.GetComponent<CanvasGroup>().blocksRaycasts);
+                Assert.IsNull(sourceObject.GetComponent<RectMask2D>());
+                Assert.IsFalse(source.enabled, "TMP should be suppressed while the native graphic is active.");
+
+                var nativeRect = (RectTransform)nativeChild;
+                Assert.AreEqual(Vector2.zero, nativeRect.anchorMin);
+                Assert.AreEqual(Vector2.one, nativeRect.anchorMax);
+                Assert.AreEqual(Vector2.zero, nativeRect.offsetMin);
+                Assert.AreEqual(Vector2.zero, nativeRect.offsetMax);
+
+                source.enabled = true;
+                adapter.Configure(source);
+                Assert.IsFalse(source.enabled, "External TMP updates must not reveal old glyphs behind Indic text.");
+
+                source.text = "book";
+                adapter.Configure(source);
+
+                Assert.IsTrue(source.enabled, "TMP should be restored when the label returns to Latin text.");
+                Assert.IsFalse(nativeChild.gameObject.activeSelf);
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
+        public void NativeIndicText_FirstIndicUpdateReplacesPlaceholderAndPreviousLatinText()
+        {
+            var root = new GameObject("Native text replacement root", typeof(RectTransform));
+            var sourceObject = new GameObject(
+                "Quiz option label",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(TMPro.TextMeshProUGUI));
+            sourceObject.transform.SetParent(root.transform, false);
+
+            try
+            {
+                var source = sourceObject.GetComponent<TMPro.TextMeshProUGUI>();
+                var adapter = sourceObject.AddComponent<NativeIndicTextAdapter>();
+                source.text = "Quiz Option 1";
+                adapter.Configure(source);
+
+                const string malayalamOption = "\u0D2A\u0D41\u0D38\u0D4D\u0D24\u0D15\u0D02";
+                source.text = malayalamOption;
+                adapter.Configure(source);
+
+                var nativeChild = sourceObject.transform.Find("Native Indic Text");
+                Assert.IsNotNull(nativeChild);
+                var nativeGraphic = nativeChild.GetComponent(NativeIndicText.NativeGraphicType);
+                Assert.IsNotNull(nativeGraphic);
+                var textProperty = nativeGraphic.GetType().GetProperty("Text");
+                Assert.IsNotNull(textProperty);
+                Assert.AreEqual(malayalamOption, textProperty?.GetValue(nativeGraphic) as string);
+                Assert.IsFalse(source.enabled);
+
+                source.text = "chaise";
+                adapter.Configure(source);
+                Assert.IsTrue(source.enabled);
+
+                const string hindiOption = "\u0915\u0941\u0930\u094D\u0938\u0940";
+                source.text = hindiOption;
+                adapter.Configure(source);
+                Assert.AreEqual(hindiOption, textProperty?.GetValue(nativeGraphic) as string);
+                Assert.IsFalse(source.enabled);
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
         public void MainScene_DetectionBoxesUseOutlineOnlyGraphics()
         {
             EditorSceneManager.OpenScene(MainScenePath, OpenSceneMode.Single);
