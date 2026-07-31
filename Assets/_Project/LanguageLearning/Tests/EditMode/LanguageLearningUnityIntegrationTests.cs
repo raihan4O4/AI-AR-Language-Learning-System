@@ -485,7 +485,9 @@ namespace AIAR.LanguageLearning.Tests
                 source.alignment = TMPro.TextAlignmentOptions.Center;
 
                 var adapter = sourceObject.AddComponent<NativeIndicTextAdapter>();
-                adapter.Configure(source);
+                Assert.DoesNotThrow(
+                    () => adapter.Configure(source),
+                    "The first Indic option must configure completely in a single pass.");
 
                 var nativeChild = sourceObject.transform.Find("Native Indic Text");
                 Assert.IsNotNull(nativeChild, "The shaped graphic was not created as a UGUI child.");
@@ -558,6 +560,41 @@ namespace AIAR.LanguageLearning.Tests
                 source.text = hindiOption;
                 adapter.Configure(source);
                 Assert.AreEqual(hindiOption, textProperty?.GetValue(nativeGraphic) as string);
+                Assert.IsFalse(source.enabled);
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
+        public void NativeIndicText_InactiveQuizLabelDefersShapingUntilActivated()
+        {
+            var root = new GameObject("Inactive quiz option root", typeof(RectTransform));
+            var sourceObject = new GameObject(
+                "Inactive quiz option label",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(TMPro.TextMeshProUGUI));
+            sourceObject.transform.SetParent(root.transform, false);
+            sourceObject.SetActive(false);
+
+            try
+            {
+                var source = sourceObject.GetComponent<TMPro.TextMeshProUGUI>();
+                source.text = "\u0915\u093F\u0924\u093E\u092C";
+                var adapter = sourceObject.AddComponent<NativeIndicTextAdapter>();
+
+                Assert.DoesNotThrow(() => adapter.Configure(source));
+                Assert.IsNull(
+                    sourceObject.transform.Find("Native Indic Text"),
+                    "Inactive labels should not initialize UniText before its OnEnable lifecycle.");
+
+                sourceObject.SetActive(true);
+                adapter.Configure(source);
+
+                Assert.IsNotNull(sourceObject.transform.Find("Native Indic Text"));
                 Assert.IsFalse(source.enabled);
             }
             finally

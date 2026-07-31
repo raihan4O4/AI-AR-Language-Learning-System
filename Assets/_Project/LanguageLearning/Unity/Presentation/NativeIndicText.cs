@@ -163,6 +163,12 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 return;
             }
 
+            // UniText initializes its font provider from OnEnable. Configuring Appearance while
+            // this label is under an inactive button would access that provider too early and
+            // abort the caller's option-population loop. The next OnEnable performs the refresh.
+            if (!isActiveAndEnabled)
+                return;
+
             if (!NativeIndicText.RequiresShaping(m_Source.text))
             {
                 HideNativeText();
@@ -237,13 +243,32 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             nativeRect.localScale = Vector3.one;
             nativeRect.localRotation = Quaternion.identity;
 
-            m_NativeText.FontStack = s_FontStack;
-            m_NativeText.Appearance = s_Appearance;
+            ConfigureNativeAssets();
             m_NativeText.raycastTarget = false;
             m_NativeText.maskable = true;
             DisableNativeRaycasts();
 
             return true;
+        }
+
+        void ConfigureNativeAssets()
+        {
+            if (m_NativeText.FontStack != s_FontStack)
+                m_NativeText.FontStack = s_FontStack;
+
+            if (m_NativeText.Appearance == s_Appearance)
+                return;
+
+            try
+            {
+                m_NativeText.Appearance = s_Appearance;
+            }
+            catch (NullReferenceException) when (m_NativeText.Appearance == s_Appearance)
+            {
+                // UniText 1.0.0 assigns its serialized appearance, then immediately updates a
+                // font provider that is not created until the first canvas rebuild. The asset is
+                // already configured correctly; suppress only that known first-use exception.
+            }
         }
 
         void DisableNativeRaycasts()

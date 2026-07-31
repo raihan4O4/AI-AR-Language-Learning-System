@@ -509,11 +509,11 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                     continue;
                 }
 
-                NativeIndicText.SetText(m_QuizOptionLabels[index], m_CurrentQuestion.Options[index].Text);
                 button.gameObject.SetActive(true);
-                button.interactable = true;
+                button.interactable = false;
                 SetQuizButtonState(button, LearningUiTheme.Card, LearningUiTheme.Ink);
-                NativeIndicText.Refresh(m_QuizOptionLabels[index]);
+                NativeIndicText.SetText(m_QuizOptionLabels[index], m_CurrentQuestion.Options[index].Text);
+                button.interactable = true;
             }
 
             // UniText rebuilds through Canvas render callbacks. Force that pass before this newly
