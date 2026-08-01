@@ -48,9 +48,12 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
         public int LegacyActivityUnits { get; }
 
-        public int ActivityUnits => ObjectScans + QuizAnswers + PronunciationPlays + LegacyActivityUnits;
+        public int LearningActionCount => ObjectScans + QuizzesCompleted;
 
-        public bool IsActive => ActivityUnits > 0;
+        public bool IsActive => LearningActionCount > 0 ||
+                                QuizAnswers > 0 ||
+                                PronunciationPlays > 0 ||
+                                LegacyActivityUnits > 0;
     }
 
     public readonly struct LearningActivitySnapshot
@@ -73,20 +76,23 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             TodayXp = Math.Max(0, todayXp);
             StreakDays = Math.Max(0, streakDays);
             WeeklyDays = weeklyDays ?? Array.Empty<LearningDaySnapshot>();
-            WeeklyActivity = WeeklyDays.Select(day => day.ActivityUnits).ToArray();
+            WeeklyLearningActions = WeeklyDays.Select(day => day.LearningActionCount).ToArray();
             LastActiveDate = lastActiveDate;
             WeeklyObjectScans = WeeklyDays.Sum(day => day.ObjectScans);
             WeeklyQuizAnswers = WeeklyDays.Sum(day => day.QuizAnswers);
             WeeklyQuizCorrect = WeeklyDays.Sum(day => day.QuizCorrect);
             WeeklyQuizzesCompleted = WeeklyDays.Sum(day => day.QuizzesCompleted);
             WeeklyLearningSeconds = WeeklyDays.Sum(day => day.LearningSeconds);
+            WeeklyLegacyActivityUnits = WeeklyDays.Sum(day => day.LegacyActivityUnits);
         }
 
         public int TodayXp { get; }
 
         public int StreakDays { get; }
 
-        public int[] WeeklyActivity { get; }
+        public int[] WeeklyLearningActions { get; }
+
+        public int[] WeeklyActivity => WeeklyLearningActions;
 
         public LearningDaySnapshot[] WeeklyDays { get; }
 
@@ -101,6 +107,8 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         public int WeeklyQuizzesCompleted { get; }
 
         public int WeeklyLearningSeconds { get; }
+
+        public int WeeklyLegacyActivityUnits { get; }
 
         public double WeeklyQuizAccuracy => WeeklyQuizAnswers == 0
             ? 0d
@@ -129,6 +137,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         const string DefaultPlayerPrefsKey = "aiar.language-learning.activity.v1";
         const int HistoryDays = 370;
         static string s_PlayerPrefsKey = DefaultPlayerPrefsKey;
+        static DateTime? s_LocalNowOverride;
 
         public static void RecordObjectScan(int xp = 5)
         {
@@ -175,7 +184,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
         public static LearningActivitySnapshot GetSnapshot()
         {
-            return GetSnapshot(DateTime.Now);
+            return GetSnapshot(GetLocalNow());
         }
 
         public static LearningActivitySnapshot GetSnapshot(DateTime localNow)
@@ -230,10 +239,16 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 : playerPrefsKey.Trim();
         }
 
+        public static void SetLocalNowForTests(DateTime? localNow)
+        {
+            s_LocalNowOverride = localNow;
+        }
+
         static void RecordToday(Action<DailyActivityRecord> update)
         {
+            var localNow = GetLocalNow();
             var document = Load();
-            var todayKey = ToDateKey(DateTime.Now);
+            var todayKey = ToDateKey(localNow);
             var entry = document.days.FirstOrDefault(item => item != null && item.date == todayKey);
             if (entry == null)
             {
@@ -243,8 +258,13 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
             update(entry);
             Normalize(entry);
-            Trim(document, DateTime.Now.Date);
+            Trim(document, localNow.Date);
             Save(document);
+        }
+
+        static DateTime GetLocalNow()
+        {
+            return s_LocalNowOverride ?? DateTime.Now;
         }
 
         static int CalculateStreak(

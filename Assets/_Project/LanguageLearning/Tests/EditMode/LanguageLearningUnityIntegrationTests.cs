@@ -115,29 +115,67 @@ namespace AIAR.LanguageLearning.Tests
         [Test]
         public void MainScene_ProgressDashboardContainsEvidenceBasedAnalyticsSections()
         {
-            EditorSceneManager.OpenScene(MainScenePath, OpenSceneMode.Single);
+            const string key = "aiar.language-learning.tests.activity-dashboard";
+            var today = new System.DateTime(2026, 7, 23, 12, 0, 0);
+            LearningActivityTracker.SetStorageKeyForTests(key);
+            LearningActivityTracker.SetLocalNowForTests(today.AddDays(-6));
+            LearningActivityTracker.Clear();
+            try
+            {
+                LearningActivityTracker.RecordObjectScan();
+                LearningActivityTracker.SetLocalNowForTests(today.AddDays(-3));
+                LearningActivityTracker.RecordQuizAnswer(true, 15);
+                LearningActivityTracker.RecordQuizAnswer(false, 3);
+                LearningActivityTracker.RecordQuizCompleted();
+                LearningActivityTracker.SetLocalNowForTests(today);
+                for (var scanIndex = 0; scanIndex < 4; scanIndex++)
+                    LearningActivityTracker.RecordObjectScan();
 
-            var mvp = Object.FindAnyObjectByType<LearningMvpController>();
-            Assert.IsNotNull(mvp);
-            mvp.ShowProgress();
+                EditorSceneManager.OpenScene(MainScenePath, OpenSceneMode.Single);
 
-            Assert.IsNotNull(GameObject.Find("Vocabulary mastery Value"));
-            Assert.IsNotNull(GameObject.Find("Quiz accuracy Value"));
-            Assert.IsNotNull(GameObject.Find("Retention score Value"));
-            Assert.IsNotNull(GameObject.Find("Needs revision Value"));
-            Assert.IsNotNull(GameObject.Find("Weekly Summary"));
-            Assert.IsNotNull(GameObject.Find("Recent Learning Activity Card"));
-            Assert.IsNotNull(GameObject.Find("Revision Recommendations"));
+                var mvp = Object.FindAnyObjectByType<LearningMvpController>();
+                Assert.IsNotNull(mvp);
+                mvp.ShowProgress();
 
-            var firstFill = GameObject.Find("Activity Fill 1");
-            Assert.IsNotNull(firstFill, "Weekly bars must use data-driven fills inside a stable track.");
-            Assert.LessOrEqual(firstFill.GetComponent<RectTransform>().anchorMax.y, 1f);
+                Assert.IsNotNull(GameObject.Find("Vocabulary mastery Value"));
+                Assert.IsNotNull(GameObject.Find("Quiz accuracy Value"));
+                Assert.IsNotNull(GameObject.Find("Retention score Value"));
+                Assert.IsNotNull(GameObject.Find("Needs revision Value"));
+                Assert.IsNotNull(GameObject.Find("Weekly Summary"));
+                Assert.IsNotNull(GameObject.Find("Recent Learning Activity Card"));
+                Assert.IsNotNull(GameObject.Find("Revision Recommendations"));
+
+                var firstFill = GameObject.Find("Activity Fill 1").GetComponent<Image>();
+                var emptyFill = GameObject.Find("Activity Fill 2").GetComponent<Image>();
+                var currentFill = GameObject.Find("Activity Fill 7").GetComponent<Image>();
+                Assert.AreEqual(0.25f, firstFill.rectTransform.anchorMax.y, 0.0001f);
+                Assert.IsTrue(firstFill.enabled);
+                Assert.AreEqual(0f, emptyFill.rectTransform.anchorMax.y, 0.0001f);
+                Assert.IsFalse(emptyFill.enabled, "Zero-activity days must not render a visible fill.");
+                Assert.AreEqual(1f, currentFill.rectTransform.anchorMax.y, 0.0001f);
+                Assert.AreEqual("1", GameObject.Find("Activity Count 1").GetComponent<TMPro.TMP_Text>().text);
+                Assert.AreEqual("0", GameObject.Find("Activity Count 2").GetComponent<TMPro.TMP_Text>().text);
+                Assert.AreEqual("4", GameObject.Find("Activity Count 7").GetComponent<TMPro.TMP_Text>().text);
+                Assert.AreEqual(
+                    today.AddDays(-6).ToString("ddd"),
+                    GameObject.Find("Activity Day Label 1").GetComponent<TMPro.TMP_Text>().text);
+                StringAssert.Contains(
+                    "5 scans  |  1 quiz",
+                    GameObject.Find("Weekly Summary").GetComponent<TMPro.TMP_Text>().text);
+            }
+            finally
+            {
+                LearningActivityTracker.Clear();
+                LearningActivityTracker.SetLocalNowForTests(null);
+                LearningActivityTracker.SetStorageKeyForTests(null);
+            }
         }
 
         [Test]
         public void LearningActivityTracker_PersistsTypedDailyMetrics()
         {
             LearningActivityTracker.SetStorageKeyForTests("aiar.language-learning.tests.activity-retention");
+            LearningActivityTracker.SetLocalNowForTests(new System.DateTime(2026, 7, 23, 12, 0, 0));
             LearningActivityTracker.Clear();
             try
             {
@@ -157,14 +195,166 @@ namespace AIAR.LanguageLearning.Tests
                 Assert.AreEqual(1, today.QuizzesCompleted);
                 Assert.AreEqual(1, today.PronunciationPlays);
                 Assert.AreEqual(125, today.LearningSeconds);
+                Assert.AreEqual(2, today.LearningActionCount);
+                Assert.AreEqual(2, snapshot.WeeklyLearningActions[snapshot.WeeklyLearningActions.Length - 1]);
                 Assert.AreEqual(0.5d, snapshot.WeeklyQuizAccuracy, 0.0001d);
                 Assert.AreEqual(1, snapshot.StreakDays);
             }
             finally
             {
                 LearningActivityTracker.Clear();
+                LearningActivityTracker.SetLocalNowForTests(null);
                 LearningActivityTracker.SetStorageKeyForTests(null);
             }
+        }
+
+        [Test]
+        public void LearningActivityTracker_AggregatesExactlySevenLocalCalendarDays()
+        {
+            const string key = "aiar.language-learning.tests.activity-seven-days";
+            var today = new System.DateTime(2026, 7, 23, 12, 0, 0);
+            LearningActivityTracker.SetStorageKeyForTests(key);
+            LearningActivityTracker.SetLocalNowForTests(today.AddDays(-7));
+            LearningActivityTracker.Clear();
+            try
+            {
+                LearningActivityTracker.RecordObjectScan();
+
+                LearningActivityTracker.SetLocalNowForTests(today.AddDays(-6));
+                LearningActivityTracker.RecordObjectScan();
+                LearningActivityTracker.RecordLearningSeconds(60f);
+
+                LearningActivityTracker.SetLocalNowForTests(today.AddDays(-5));
+                LearningActivityTracker.RecordObjectScan();
+                LearningActivityTracker.RecordObjectScan();
+
+                LearningActivityTracker.SetLocalNowForTests(today.AddDays(-4));
+                LearningActivityTracker.RecordQuizAnswer(true, 15);
+                LearningActivityTracker.RecordQuizAnswer(false, 3);
+
+                LearningActivityTracker.SetLocalNowForTests(today.AddDays(-3));
+                LearningActivityTracker.RecordQuizAnswer(true, 15);
+                LearningActivityTracker.RecordQuizAnswer(false, 3);
+                LearningActivityTracker.RecordQuizCompleted();
+
+                LearningActivityTracker.SetLocalNowForTests(today.AddDays(-2));
+                LearningActivityTracker.RecordPronunciationPlayed();
+
+                LearningActivityTracker.SetLocalNowForTests(today);
+                LearningActivityTracker.RecordObjectScan();
+                LearningActivityTracker.RecordQuizAnswer(true, 15);
+                LearningActivityTracker.RecordQuizCompleted();
+                LearningActivityTracker.RecordLearningSeconds(65f);
+
+                var snapshot = LearningActivityTracker.GetSnapshot();
+
+                Assert.AreEqual(7, snapshot.WeeklyDays.Length);
+                Assert.AreEqual(today.AddDays(-6).Date, snapshot.WeeklyDays[0].Date);
+                Assert.AreEqual(today.Date, snapshot.WeeklyDays[6].Date);
+                CollectionAssert.AreEqual(new[] { 1, 2, 0, 1, 0, 0, 2 }, snapshot.WeeklyLearningActions);
+                Assert.AreEqual(4, snapshot.WeeklyObjectScans, "The scan from eight calendar dates ago must be excluded.");
+                Assert.AreEqual(5, snapshot.WeeklyQuizAnswers);
+                Assert.AreEqual(3, snapshot.WeeklyQuizCorrect);
+                Assert.AreEqual(2, snapshot.WeeklyQuizzesCompleted);
+                Assert.AreEqual(125, snapshot.WeeklyLearningSeconds);
+                Assert.AreEqual(0.6d, snapshot.WeeklyQuizAccuracy, 0.0001d);
+            }
+            finally
+            {
+                LearningActivityTracker.Clear();
+                LearningActivityTracker.SetLocalNowForTests(null);
+                LearningActivityTracker.SetStorageKeyForTests(null);
+            }
+        }
+
+        [Test]
+        public void LearningActivityTracker_StreakAllowsInactiveTodayButStopsAtAGap()
+        {
+            const string key = "aiar.language-learning.tests.activity-streak";
+            var today = new System.DateTime(2026, 7, 23, 12, 0, 0);
+            LearningActivityTracker.SetStorageKeyForTests(key);
+            LearningActivityTracker.SetLocalNowForTests(today.AddDays(-3));
+            LearningActivityTracker.Clear();
+            try
+            {
+                LearningActivityTracker.RecordObjectScan();
+                LearningActivityTracker.SetLocalNowForTests(today.AddDays(-2));
+                LearningActivityTracker.RecordQuizAnswer(false, 3);
+                LearningActivityTracker.SetLocalNowForTests(today.AddDays(-1));
+                LearningActivityTracker.RecordPronunciationPlayed();
+                LearningActivityTracker.SetLocalNowForTests(today);
+
+                Assert.AreEqual(3, LearningActivityTracker.GetSnapshot().StreakDays);
+
+                LearningActivityTracker.RecordObjectScan();
+                Assert.AreEqual(4, LearningActivityTracker.GetSnapshot().StreakDays);
+
+                LearningActivityTracker.SetLocalNowForTests(today.AddDays(2));
+                Assert.AreEqual(0, LearningActivityTracker.GetSnapshot().StreakDays);
+            }
+            finally
+            {
+                LearningActivityTracker.Clear();
+                LearningActivityTracker.SetLocalNowForTests(null);
+                LearningActivityTracker.SetStorageKeyForTests(null);
+            }
+        }
+
+        [Test]
+        public void LearningActivityTracker_LegacyActivityAffectsStreakButNotTypedChart()
+        {
+            const string key = "aiar.language-learning.tests.activity-legacy";
+            var today = new System.DateTime(2026, 7, 23, 12, 0, 0);
+            LearningActivityTracker.SetStorageKeyForTests(key);
+            LearningActivityTracker.SetLocalNowForTests(today);
+            LearningActivityTracker.Clear();
+            try
+            {
+                PlayerPrefs.SetString(
+                    key,
+                    $"{{\"schemaVersion\":1,\"days\":[{{\"date\":\"{today:yyyyMMdd}\",\"xp\":7,\"activityUnits\":3}}]}}");
+                PlayerPrefs.Save();
+
+                var snapshot = LearningActivityTracker.GetSnapshot();
+
+                Assert.AreEqual(7, snapshot.TodayXp);
+                Assert.AreEqual(1, snapshot.StreakDays);
+                Assert.AreEqual(3, snapshot.WeeklyLegacyActivityUnits);
+                Assert.AreEqual(0, snapshot.WeeklyObjectScans);
+                Assert.AreEqual(0, snapshot.WeeklyQuizzesCompleted);
+                Assert.AreEqual(0, snapshot.WeeklyLearningActions[snapshot.WeeklyLearningActions.Length - 1]);
+            }
+            finally
+            {
+                LearningActivityTracker.Clear();
+                LearningActivityTracker.SetLocalNowForTests(null);
+                LearningActivityTracker.SetStorageKeyForTests(null);
+            }
+        }
+
+        [Test]
+        public void LearningSessionController_RecordsEachVocabularyOncePerScanSession()
+        {
+            EditorSceneManager.OpenScene(MainScenePath, OpenSceneMode.Single);
+            var session = Object.FindAnyObjectByType<LearningSessionController>();
+            var method = typeof(LearningSessionController).GetMethod(
+                "TryMarkObjectViewedThisScanSession",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var entry = new Domain.VocabularyEntry(
+                "test-book",
+                "book",
+                "education",
+                new[] { "book" },
+                new[] { new Domain.VocabularyTranslation(Domain.LanguageCode.English, "book", "book", "en-US") });
+
+            Assert.IsNotNull(session);
+            Assert.IsNotNull(method);
+            session.ResetObjectDisplayState();
+            Assert.IsTrue((bool)method.Invoke(session, new object[] { entry }));
+            Assert.IsFalse((bool)method.Invoke(session, new object[] { entry }));
+
+            session.ResetObjectDisplayState();
+            Assert.IsTrue((bool)method.Invoke(session, new object[] { entry }));
         }
 
         [Test]

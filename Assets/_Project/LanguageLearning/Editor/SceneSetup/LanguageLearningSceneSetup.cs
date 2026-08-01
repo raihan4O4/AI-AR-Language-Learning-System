@@ -606,7 +606,6 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
             serializedObject.FindProperty("m_DebugRecognitionLogging").boolValue = false;
             serializedObject.FindProperty("m_MinimumStableFrames").intValue = 1;
             serializedObject.FindProperty("m_DetectionHoldSeconds").floatValue = 2f;
-            serializedObject.FindProperty("m_ViewRecordingCooldownSeconds").floatValue = 12f;
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
 

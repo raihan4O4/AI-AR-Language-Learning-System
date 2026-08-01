@@ -105,7 +105,7 @@ the camera path. This avoids launching XR subsystems before the learner requests
   produces normalized screen coordinates without a fragile device-orientation approximation.
 - The first valid prediction is shown immediately; brief detector gaps are held for 2 seconds and box/confidence values are smoothed.
 - Bounding-box GameObjects are pooled and reused instead of instantiated for every inference result.
-- Object views have a 12-second persistence cooldown, preventing frame rate from inflating learning progress.
+- A vocabulary item is recorded once per Scan session, preventing repeated detector frames from inflating learning progress.
 - Detector state is surfaced as initializing, running, awaiting camera, degraded, faulted, or stopped.
 - Verbose per-frame recognition logging is disabled in production builds.
 - Android TTS queues the first utterance until the platform engine has initialized and verifies locale support.
@@ -146,14 +146,15 @@ The MVP deliberately uses explainable metrics rather than generated or estimated
 | Quiz accuracy | Correct answers / all quiz answers. Empty history displays 0%, not a fabricated baseline. | Correct and incorrect answer counts |
 | Retention score | 50% confidence-weighted quiz accuracy + 40% spaced successful recalls + 10% recall recency. Attempt confidence reaches full weight after three answers; spaced recall credit requires 20 hours between successful recalls; recency decreases over 30 days. | Attempts, correct answers, spaced-recall count, last-correct time |
 | Needs revision | A learned word has no quiz evidence, retention below 60%, no successful recall, or its last successful recall is at least seven days old. | Per-word retention evidence |
-| Recent/weekly activity | Exact scans, quiz answers, completed quizzes, pronunciation plays, and focused learning seconds aggregated by local calendar day. | Typed daily activity records |
+| Recent/weekly activity | Exact scans, quiz answers, completed quizzes, pronunciation plays, and focused learning seconds aggregated by local calendar day. Daily bars show scans + completed quizzes on a proportional scale. | Typed daily activity records |
 | Learning streak | Consecutive days containing at least one scan, quiz answer, or pronunciation action. An unfinished current day does not break yesterday's streak. | Typed daily activity records |
 | Focused learning time | Time while the learner is on Scan or Quiz only; Home and Progress browsing are excluded. | Periodic focused-time checkpoints |
 
-Object scans are recorded only after the detector produces a catalog match and the 12-second per-word
-cooldown passes. Quiz completions are recorded only after the final answer. Pronunciation playback is
-counted once at the service boundary. These rules prevent rendering frames, repeated UI callbacks, and
-partially opened quizzes from inflating the analytics.
+Object scans are recorded only after the detector produces a catalog match, and each vocabulary item can
+contribute at most one scan per Scan session. Quiz completions are recorded only after the final answer.
+Pronunciation playback is counted once at the service boundary. These rules prevent rendering frames,
+repeated UI callbacks, and partially opened quizzes from inflating the analytics. Legacy generic activity
+remains valid for streak continuity but is excluded from typed scan/quiz totals and daily chart bars.
 
 Progress schema v2 stores recall streaks and timestamps while reading schema v1 saves. Because the old
 schema did not retain answer timing, migration grants at most one historical recall session rather than

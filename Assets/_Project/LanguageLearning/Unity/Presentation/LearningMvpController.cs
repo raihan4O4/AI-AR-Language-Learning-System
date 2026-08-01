@@ -107,6 +107,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         TMP_Text m_StreakValueText;
         TMP_Text m_LearningTimeText;
         Image[] m_WeeklyBars = Array.Empty<Image>();
+        TMP_Text[] m_WeeklyCountLabels = Array.Empty<TMP_Text>();
         TMP_Text[] m_WeeklyDayLabels = Array.Empty<TMP_Text>();
         ScrollRect m_HomeScrollRect;
         ScrollRect m_QuizScrollRect;
@@ -580,24 +581,27 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 LearningUiTheme.WithAlpha(Color.white, 0.9f),
                 FontStyles.Normal);
 
-            var maximumDailyActivity = Math.Max(1, activity.WeeklyActivity.DefaultIfEmpty(0).Max());
-            for (var index = 0; index < m_WeeklyBars.Length && index < activity.WeeklyActivity.Length; index++)
+            var maximumDailyActivity = Math.Max(1, activity.WeeklyLearningActions.DefaultIfEmpty(0).Max());
+            for (var index = 0; index < m_WeeklyBars.Length && index < activity.WeeklyLearningActions.Length; index++)
             {
                 var isCurrentDay = index == m_WeeklyBars.Length - 1;
                 m_WeeklyBars[index].color = LearningUiTheme.WithAlpha(
                     LearningUiTheme.Primary,
                     isCurrentDay ? 1f : 0.55f);
-                var activityAmount = activity.WeeklyActivity[index];
-                var normalizedHeight = activityAmount <= 0
-                    ? 0.06f
-                    : Mathf.Lerp(0.22f, 1f, activityAmount / (float)maximumDailyActivity);
+                var activityAmount = activity.WeeklyLearningActions[index];
+                var normalizedHeight = CalculateActivityBarFill(activityAmount, maximumDailyActivity);
+                m_WeeklyBars[index].enabled = activityAmount > 0;
                 var barRect = m_WeeklyBars[index].rectTransform;
                 barRect.anchorMax = new Vector2(1f, normalizedHeight);
                 barRect.offsetMin = new Vector2(8f, 0f);
                 barRect.offsetMax = new Vector2(-8f, 0f);
+                if (index < m_WeeklyCountLabels.Length)
+                    m_WeeklyCountLabels[index].text = activityAmount.ToString();
                 if (index < m_WeeklyDayLabels.Length)
                 {
-                    m_WeeklyDayLabels[index].text = DateTime.Now.AddDays(index - 6).ToString("ddd").Substring(0, 1);
+                    m_WeeklyDayLabels[index].text = index < activity.WeeklyDays.Length
+                        ? activity.WeeklyDays[index].Date.ToString("ddd")
+                        : string.Empty;
                     m_WeeklyDayLabels[index].color = isCurrentDay
                         ? LearningUiTheme.PrimaryDark
                         : LearningUiTheme.Muted;
@@ -606,13 +610,20 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
             if (m_WeeklySummaryText != null)
             {
-                var weeklyMinutes = Mathf.RoundToInt(activity.WeeklyLearningSeconds / 60f);
+                var weeklyMinutes = activity.WeeklyLearningSeconds / 60f;
+                var incorrectAnswers = Math.Max(0, activity.WeeklyQuizAnswers - activity.WeeklyQuizCorrect);
                 var answerSummary = activity.WeeklyQuizAnswers == 0
                     ? "No quiz answers yet"
-                    : $"{activity.WeeklyQuizAnswers} answers at {activity.WeeklyQuizAccuracy:P0}";
+                    : $"{activity.WeeklyQuizCorrect} correct  |  {incorrectAnswers} incorrect  |  {activity.WeeklyQuizAccuracy:P0} accuracy";
+                var chartSummary = activity.WeeklyLegacyActivityUnits > 0
+                    ? $"Bars: scans + finished quizzes. {activity.WeeklyLegacyActivityUnits} older actions affect streak only."
+                    : "Bars: scans + finished quizzes.";
+                var scanLabel = activity.WeeklyObjectScans == 1 ? "scan" : "scans";
+                var quizLabel = activity.WeeklyQuizzesCompleted == 1 ? "quiz" : "quizzes";
                 m_WeeklySummaryText.text =
-                    $"{activity.WeeklyObjectScans} scans  |  {activity.WeeklyQuizzesCompleted} quizzes  |  {weeklyMinutes} focused min\n" +
-                    answerSummary;
+                    $"{activity.WeeklyObjectScans} {scanLabel}  |  {activity.WeeklyQuizzesCompleted} {quizLabel}  |  {weeklyMinutes:0.#} focused min\n" +
+                    answerSummary + "\n" +
+                    chartSummary;
             }
 
             if (m_ProgressSummaryText != null)
@@ -1410,7 +1421,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             CreateStatCard(statsGrid.transform, "Objects scanned", LearningUiIconType.Camera, LearningUiTheme.Secondary, LearningUiTheme.SecondarySoft, out m_ObjectsScannedText, font);
             CreateStatCard(statsGrid.transform, "Current streak", LearningUiIconType.Flame, LearningUiTheme.Warning, LearningUiTheme.AccentSoft, out m_StreakValueText, font);
 
-            var weeklyCard = CreatePanel(content.transform, "Weekly Activity Card", LearningUiTheme.Card, LearningUiTheme.RadiusLarge, 410f);
+            var weeklyCard = CreatePanel(content.transform, "Weekly Activity Card", LearningUiTheme.Card, LearningUiTheme.RadiusLarge, 438f);
             LearningUiTheme.StyleSurface(weeklyCard.GetComponent<Image>(), LearningUiTheme.Card, LearningUiTheme.RadiusLarge, true, new Vector2(0f, -6f));
             var weeklyLayout = weeklyCard.AddComponent<VerticalLayoutGroup>();
             weeklyLayout.padding = new RectOffset(28, 28, 24, 22);
@@ -1424,18 +1435,25 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             SetPreferredHeight(weeklyTitle.gameObject, 42f);
             var chart = CreateHorizontalGroup(weeklyCard.transform, "Weekly Activity Graph", 212f, 12f, true);
             m_WeeklyBars = new Image[7];
+            m_WeeklyCountLabels = new TMP_Text[7];
             m_WeeklyDayLabels = new TMP_Text[7];
             for (var index = 0; index < 7; index++)
-                CreateActivityBar(chart.transform, index, font, out m_WeeklyBars[index], out m_WeeklyDayLabels[index]);
+                CreateActivityBar(
+                    chart.transform,
+                    index,
+                    font,
+                    out m_WeeklyBars[index],
+                    out m_WeeklyCountLabels[index],
+                    out m_WeeklyDayLabels[index]);
             m_WeeklySummaryText = CreateText(
                 weeklyCard.transform,
                 "Weekly Summary",
-                "0 scans  |  0 quizzes  |  0 focused min\nNo quiz answers yet",
+                "0 scans  |  0 quizzes  |  0 focused min\nNo quiz answers yet\nBars: scans + finished quizzes.",
                 20f,
                 font,
                 LearningUiTheme.Muted);
             m_WeeklySummaryText.textWrappingMode = TextWrappingModes.Normal;
-            SetPreferredHeight(m_WeeklySummaryText.gameObject, 68f);
+            SetPreferredHeight(m_WeeklySummaryText.gameObject, 92f);
 
             var achievementCard = CreatePanel(content.transform, "Recent Learning Activity Card", LearningUiTheme.AccentSoft, LearningUiTheme.RadiusLarge, 236f);
             var achievementLayout = achievementCard.AddComponent<HorizontalLayoutGroup>();
@@ -1763,21 +1781,34 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             int index,
             TMP_FontAsset font,
             out Image fill,
+            out TMP_Text countLabel,
             out TMP_Text dayLabel)
         {
-            var column = CreateVerticalGroup(parent, $"Activity Day {index + 1}", 8f);
-            var track = CreatePanel(column.transform, $"Activity Track {index + 1}", LearningUiTheme.PrimarySoft, 14f, 154f);
+            var column = CreateVerticalGroup(parent, $"Activity Day {index + 1}", 6f);
+            countLabel = CreateText(column.transform, $"Activity Count {index + 1}", "0", 16f, font, LearningUiTheme.Muted, TextAlignmentOptions.Center);
+            countLabel.fontStyle = FontStyles.Bold;
+            SetPreferredHeight(countLabel.gameObject, 24f);
+            var track = CreatePanel(column.transform, $"Activity Track {index + 1}", LearningUiTheme.PrimarySoft, 14f, 140f);
             var fillObject = CreatePanel(track.transform, $"Activity Fill {index + 1}", LearningUiTheme.Primary, 12f);
             var fillRect = fillObject.GetComponent<RectTransform>();
             fillRect.anchorMin = Vector2.zero;
-            fillRect.anchorMax = new Vector2(1f, 0.06f);
+            fillRect.anchorMax = new Vector2(1f, 0f);
             fillRect.pivot = new Vector2(0.5f, 0f);
             fillRect.offsetMin = new Vector2(8f, 0f);
             fillRect.offsetMax = new Vector2(-8f, 0f);
             fill = fillObject.GetComponent<Image>();
-            dayLabel = CreateText(column.transform, $"Activity Day Label {index + 1}", "M", 17f, font, LearningUiTheme.Muted, TextAlignmentOptions.Center);
+            fill.enabled = false;
+            dayLabel = CreateText(column.transform, $"Activity Day Label {index + 1}", "Mon", 16f, font, LearningUiTheme.Muted, TextAlignmentOptions.Center);
             dayLabel.fontStyle = FontStyles.Bold;
-            SetPreferredHeight(dayLabel.gameObject, 30f);
+            SetPreferredHeight(dayLabel.gameObject, 26f);
+        }
+
+        static float CalculateActivityBarFill(int activityAmount, int maximumDailyActivity)
+        {
+            if (activityAmount <= 0 || maximumDailyActivity <= 0)
+                return 0f;
+
+            return Mathf.Clamp01(activityAmount / (float)maximumDailyActivity);
         }
 
         static GameObject CreatePanel(
