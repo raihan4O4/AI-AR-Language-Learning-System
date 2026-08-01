@@ -1,0 +1,26 @@
+{
+    "name": "AIAR.LanguageLearning.Editor",
+    "rootNamespace": "AIAR.LanguageLearning.Editor",
+    "references": [
+        "AIAR.LanguageLearning.Domain",
+        "AIAR.LanguageLearning.Application",
+        "AIAR.LanguageLearning.Unity",
+        "LightSide.UniText",
+        "Unity.TextMeshPro",
+        "Unity.InferenceEngine",
+        "Unity.InputSystem",
+        "Unity.XR.ARFoundation",
+        "Unity.XR.ARSubsystems"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

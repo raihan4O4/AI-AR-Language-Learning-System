@@ -32,7 +32,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         }
 
         const int QuizOptionCount = 4;
-        const string TotalLearningSecondsKey = "aiar.language-learning.total-seconds.v1";
+        const string TotalLearningSecondsKey = "aiar.language-learning.focused-seconds.v2";
 
         static readonly LanguageCode[] QuizLanguages =
         {
@@ -64,6 +64,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         TMP_Text m_QuizFeedbackText;
         TMP_Text m_ProgressSummaryText;
         TMP_Text m_RevisionText;
+        TMP_Text m_WeeklySummaryText;
         Button[] m_QuizOptionButtons = Array.Empty<Button>();
         TMP_Text[] m_QuizOptionLabels = Array.Empty<TMP_Text>();
         Button[] m_QuizLanguageButtons = Array.Empty<Button>();
@@ -98,12 +99,15 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         TMP_Text m_LevelText;
         TMP_Text m_XpProgressText;
         LearningPillGraphic m_LevelProgressFill;
-        TMP_Text m_WordsLearnedText;
+        TMP_Text m_VocabularyMasteryText;
         TMP_Text m_ObjectsScannedText;
         TMP_Text m_QuizAccuracyValueText;
+        TMP_Text m_RetentionScoreText;
+        TMP_Text m_RevisionCountText;
         TMP_Text m_StreakValueText;
         TMP_Text m_LearningTimeText;
         Image[] m_WeeklyBars = Array.Empty<Image>();
+        TMP_Text[] m_WeeklyCountLabels = Array.Empty<TMP_Text>();
         TMP_Text[] m_WeeklyDayLabels = Array.Empty<TMP_Text>();
         ScrollRect m_HomeScrollRect;
         ScrollRect m_QuizScrollRect;
@@ -117,8 +121,8 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             LearningPortraitBootstrap.Apply();
             ResolveDependencies();
             EnsureUi();
-            m_SessionSegmentStartedAt = Time.realtimeSinceStartup;
-            m_NextSessionSaveAt = m_SessionSegmentStartedAt + 30f;
+            m_SessionSegmentStartedAt = -1f;
+            m_NextSessionSaveAt = Time.realtimeSinceStartup + 30f;
         }
 
         void OnEnable()
@@ -145,23 +149,26 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             m_SubscribedRecognitionService = null;
 
             DeactivateScanRuntime();
-            SaveSessionDuration();
+            SaveSessionDuration(false);
         }
 
         void Update()
         {
+            if (m_SessionSegmentStartedAt < 0f)
+                return;
+
             if (Time.realtimeSinceStartup < m_NextSessionSaveAt)
                 return;
 
-            SaveSessionDuration();
+            SaveSessionDuration(true);
             m_NextSessionSaveAt = Time.realtimeSinceStartup + 30f;
         }
 
         void OnApplicationPause(bool paused)
         {
             if (paused)
-                SaveSessionDuration();
-            else
+                SaveSessionDuration(false);
+            else if (IsLearningScreen(m_CurrentScreen))
                 m_SessionSegmentStartedAt = Time.realtimeSinceStartup;
         }
 
@@ -181,19 +188,24 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             if (!ResolveDependencies())
                 return;
 
-            m_CurrentScreen = ExperienceScreen.Scan;
+            TransitionToScreen(ExperienceScreen.Scan);
+            m_SessionController.ResetObjectDisplayState();
             SetAppBackgroundVisible(false);
             SetVisible(m_HomeCanvasGroup, false);
             SetVisible(m_QuizCanvasGroup, false);
             SetVisible(m_ProgressCanvasGroup, false);
             SetVisible(m_ScanCanvasGroup, true);
             m_VocabularyPresenter?.SetScanDisplayEnabled(true);
-            SetVisible(m_VocabularyCanvasGroup, m_SessionController?.CurrentVocabularyEntry != null);
+            m_VocabularyPresenter?.ResetObjectDisplay();
+            SetVisible(m_VocabularyCanvasGroup, false);
             SetVisible(m_StatusCanvasGroup, false);
             SetScanSpeakAvailable(false);
             RefreshLanguageButtonStyles();
             SetStatus("Point your camera at an everyday object");
             AnimateScreenIn(m_ScanCanvasGroup, 28f);
+
+            if (!UnityEngine.Application.isPlaying)
+                return;
 
             if (m_ScanStartupCoroutine != null)
                 StopCoroutine(m_ScanStartupCoroutine);
@@ -203,7 +215,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         public void ShowHome()
         {
             EnsureUi();
-            m_CurrentScreen = ExperienceScreen.Home;
+            TransitionToScreen(ExperienceScreen.Home);
             DeactivateScanRuntime();
             SetAppBackgroundVisible(true);
             SetVisible(m_HomeCanvasGroup, true);
@@ -223,7 +235,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             if (!ResolveDependencies())
                 return;
 
-            m_CurrentScreen = ExperienceScreen.Quiz;
+            TransitionToScreen(ExperienceScreen.Quiz);
             DeactivateScanRuntime();
             m_SessionController.PauseRecognition();
             SetAppBackgroundVisible(true);
@@ -244,7 +256,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             if (!ResolveDependencies())
                 return;
 
-            m_CurrentScreen = ExperienceScreen.Progress;
+            TransitionToScreen(ExperienceScreen.Progress);
             DeactivateScanRuntime();
             m_SessionController.PauseRecognition();
             SetAppBackgroundVisible(true);
@@ -282,7 +294,8 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 m_CorrectAnswers++;
 
             var earnedXp = wasCorrect ? 15 : 3;
-            LearningActivityTracker.Record(earnedXp);
+            if (UnityEngine.Application.isPlaying)
+                LearningActivityTracker.RecordQuizAnswer(wasCorrect, earnedXp);
 
             for (var index = 0; index < m_QuizOptionButtons.Length; index++)
             {
@@ -313,6 +326,8 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
             if (m_QuestionsAnswered >= m_QuizLength)
             {
+                if (UnityEngine.Application.isPlaying)
+                    LearningActivityTracker.RecordQuizCompleted();
                 m_QuizFeedbackText.text += $"  Final score: {m_CorrectAnswers}/{m_QuestionsAnswered}.";
                 SetNextQuestionButton(true, "Finish");
                 return;
@@ -368,7 +383,6 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 return;
 
             m_SessionController.SpeakCurrentWord();
-            LearningActivityTracker.Record(3);
             SetStatus("Pronunciation played");
         }
 
@@ -401,8 +415,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 return;
             }
 
-            LearningActivityTracker.Record(2);
-            SetStatus($"{entry.CanonicalObjectLabel} saved to your progress");
+            SetStatus($"{entry.CanonicalObjectLabel} is already saved to your progress");
             RefreshHomeSummary();
         }
 
@@ -419,6 +432,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             m_QuestionAnswered = false;
             m_CurrentQuestion = null;
             m_CurrentQuizEntry = null;
+            ClearQuizOptionDisplay();
             m_QuizFeedbackText.text = string.Empty;
             m_QuizFeedbackText.color = LearningUiTheme.Muted;
             SetRoundedFillAmount(m_QuizProgressFill, 0f);
@@ -435,10 +449,12 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
             try
             {
-                m_QuizEntries = m_CompositionRoot.QuizService.CreateQuestionSequence(
+                m_QuizEntries = m_CompositionRoot.QuizService.CreateAdaptiveQuestionSequence(
                     catalog,
+                    m_CompositionRoot.ProgressRepository.LoadAll(),
                     m_SessionController.LearningLanguage,
                     m_QuizLength,
+                    DateTime.UtcNow,
                     Environment.TickCount);
             }
             catch (Exception exception)
@@ -486,13 +502,27 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             {
                 var hasOption = index < m_CurrentQuestion.Options.Count;
                 var button = m_QuizOptionButtons[index];
-                button.gameObject.SetActive(hasOption);
                 if (!hasOption)
+                {
+                    NativeIndicText.SetText(m_QuizOptionLabels[index], string.Empty);
+                    button.interactable = false;
+                    button.gameObject.SetActive(false);
                     continue;
+                }
 
-                m_QuizOptionLabels[index].text = m_CurrentQuestion.Options[index].Text;
-                button.interactable = true;
+                button.gameObject.SetActive(true);
+                button.interactable = false;
                 SetQuizButtonState(button, LearningUiTheme.Card, LearningUiTheme.Ink);
+                NativeIndicText.SetText(m_QuizOptionLabels[index], m_CurrentQuestion.Options[index].Text);
+                button.interactable = true;
+            }
+
+            // UniText rebuilds through Canvas render callbacks. Force that pass before this newly
+            // activated question can be drawn, so no cleared/previous option survives one frame.
+            if (UnityEngine.Application.isPlaying &&
+                m_CurrentQuestion.Options.Any(option => NativeIndicText.RequiresShaping(option.Text)))
+            {
+                Canvas.ForceUpdateCanvases();
             }
 
             if (UnityEngine.Application.isPlaying && m_QuizQuestionCard != null)
@@ -510,14 +540,25 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             SetNextQuestionButton(false, "Next Question");
         }
 
+        void ClearQuizOptionDisplay()
+        {
+            for (var index = 0; index < m_QuizOptionButtons.Length; index++)
+            {
+                NativeIndicText.SetText(m_QuizOptionLabels[index], string.Empty);
+                m_QuizOptionButtons[index].interactable = false;
+                m_QuizOptionButtons[index].gameObject.SetActive(false);
+            }
+        }
+
         void RefreshProgress()
         {
             var catalog = m_CompositionRoot.VocabularyRepository.GetAll();
             var progress = m_CompositionRoot.ProgressRepository.LoadAll();
-            var summary = m_CompositionRoot.RetentionAnalysisService.CreateSummary(catalog, progress);
-            var quizAttempts = progress.Sum(item => item.QuizAttempts);
-            var quizCorrect = progress.Sum(item => item.QuizCorrect);
-            var quizAccuracy = quizAttempts == 0 ? 0d : quizCorrect / (double)quizAttempts;
+            var nowUtc = DateTime.UtcNow;
+            var summary = m_CompositionRoot.RetentionAnalysisService.CreateSummary(
+                catalog,
+                progress,
+                nowUtc: nowUtc);
             var objectScans = progress.Sum(item => item.TimesSeen);
             var totalXp = CalculateTotalXp(progress);
             var level = Mathf.Max(1, (totalXp / 250) + 1);
@@ -528,48 +569,88 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             SetMetricText(m_LevelText, $"Level {level}", Color.white);
             SetMetricText(m_XpProgressText, $"{xpInsideLevel} / 250 XP", Color.white);
             AnimateFill(m_LevelProgressFill, xpInsideLevel / 250f);
-            SetMetricText(m_WordsLearnedText, summary.SeenWords.ToString(), LearningUiTheme.Ink);
+            SetMetricText(m_VocabularyMasteryText, $"{summary.VocabularyMasteryRate:P0}", LearningUiTheme.Ink);
             SetMetricText(m_ObjectsScannedText, objectScans.ToString(), LearningUiTheme.Ink);
-            SetMetricText(m_QuizAccuracyValueText, $"{quizAccuracy:P0}", LearningUiTheme.Ink);
+            SetMetricText(m_QuizAccuracyValueText, $"{summary.QuizAccuracy:P0}", LearningUiTheme.Ink);
+            SetMetricText(m_RetentionScoreText, $"{summary.AverageRetentionScore:P0}", LearningUiTheme.Ink);
+            SetMetricText(m_RevisionCountText, summary.WordsNeedingRevision.ToString(), LearningUiTheme.Ink);
             SetMetricText(m_StreakValueText, activity.StreakDays.ToString(), LearningUiTheme.Ink);
             SetMetricText(
                 m_LearningTimeText,
-                $"{(int)totalLearningTime.TotalHours:00}:{totalLearningTime.Minutes:00} learning time",
+                $"{(int)totalLearningTime.TotalHours:00}:{totalLearningTime.Minutes:00} focused learning",
                 LearningUiTheme.WithAlpha(Color.white, 0.9f),
                 FontStyles.Normal);
 
-            for (var index = 0; index < m_WeeklyBars.Length && index < activity.WeeklyActivity.Length; index++)
+            var maximumDailyActivity = Math.Max(1, activity.WeeklyLearningActions.DefaultIfEmpty(0).Max());
+            for (var index = 0; index < m_WeeklyBars.Length && index < activity.WeeklyLearningActions.Length; index++)
             {
                 var isCurrentDay = index == m_WeeklyBars.Length - 1;
-                m_WeeklyBars[index].color = isCurrentDay
-                    ? LearningUiTheme.Primary
-                    : LearningUiTheme.PrimarySoft;
+                m_WeeklyBars[index].color = LearningUiTheme.WithAlpha(
+                    LearningUiTheme.Primary,
+                    isCurrentDay ? 1f : 0.55f);
+                var activityAmount = activity.WeeklyLearningActions[index];
+                var normalizedHeight = CalculateActivityBarFill(activityAmount, maximumDailyActivity);
+                m_WeeklyBars[index].enabled = activityAmount > 0;
+                var barRect = m_WeeklyBars[index].rectTransform;
+                barRect.anchorMax = new Vector2(1f, normalizedHeight);
+                barRect.offsetMin = new Vector2(8f, 0f);
+                barRect.offsetMax = new Vector2(-8f, 0f);
+                if (index < m_WeeklyCountLabels.Length)
+                    m_WeeklyCountLabels[index].text = activityAmount.ToString();
                 if (index < m_WeeklyDayLabels.Length)
                 {
-                    m_WeeklyDayLabels[index].text = DateTime.Now.AddDays(index - 6).ToString("ddd").Substring(0, 1);
+                    m_WeeklyDayLabels[index].text = index < activity.WeeklyDays.Length
+                        ? activity.WeeklyDays[index].Date.ToString("ddd")
+                        : string.Empty;
                     m_WeeklyDayLabels[index].color = isCurrentDay
                         ? LearningUiTheme.PrimaryDark
                         : LearningUiTheme.Muted;
                 }
             }
 
-            if (m_ProgressSummaryText != null)
+            if (m_WeeklySummaryText != null)
             {
-                m_ProgressSummaryText.text = summary.MasteredWords > 0
-                    ? $"Word explorer • {summary.MasteredWords} mastered"
-                    : "Your first achievement is one scan away";
+                var weeklyMinutes = activity.WeeklyLearningSeconds / 60f;
+                var incorrectAnswers = Math.Max(0, activity.WeeklyQuizAnswers - activity.WeeklyQuizCorrect);
+                var answerSummary = activity.WeeklyQuizAnswers == 0
+                    ? "No quiz answers yet"
+                    : $"{activity.WeeklyQuizCorrect} correct  |  {incorrectAnswers} incorrect  |  {activity.WeeklyQuizAccuracy:P0} accuracy";
+                var chartSummary = activity.WeeklyLegacyActivityUnits > 0
+                    ? $"Bars: scans + finished quizzes. {activity.WeeklyLegacyActivityUnits} older actions affect streak only."
+                    : "Bars: scans + finished quizzes.";
+                var scanLabel = activity.WeeklyObjectScans == 1 ? "scan" : "scans";
+                var quizLabel = activity.WeeklyQuizzesCompleted == 1 ? "quiz" : "quizzes";
+                m_WeeklySummaryText.text =
+                    $"{activity.WeeklyObjectScans} {scanLabel}  |  {activity.WeeklyQuizzesCompleted} {quizLabel}  |  {weeklyMinutes:0.#} focused min\n" +
+                    answerSummary + "\n" +
+                    chartSummary;
             }
 
-            var recommendations = m_CompositionRoot.AdaptiveRevisionService.GetRecommendations(
+            if (m_ProgressSummaryText != null)
+            {
+                var today = activity.WeeklyDays.Length == 0
+                    ? default
+                    : activity.WeeklyDays[activity.WeeklyDays.Length - 1];
+                var todaySummary = today.ObjectScans == 0 && today.QuizzesCompleted == 0
+                    ? "No scans or completed quizzes yet today"
+                    : $"Today: {today.ObjectScans} scans  |  {today.QuizzesCompleted} quizzes";
+                m_ProgressSummaryText.text =
+                    $"{todaySummary}\n{summary.SeenWords} of {summary.TotalWords} words explored  |  {summary.MasteredWords} mastered";
+            }
+
+            var recommendations = m_CompositionRoot.AdaptiveRevisionService.GetRevisionQueue(
                 catalog,
                 progress,
-                DateTime.UtcNow,
+                nowUtc,
                 4);
             if (m_RevisionText != null)
             {
                 m_RevisionText.text = recommendations.Count == 0
-                    ? "Scan an object to begin building your practice list."
-                    : string.Join("\n", recommendations.Select(item => $"- {item.Entry.CanonicalObjectLabel}: {item.Reason}"));
+                    ? "No learned words need revision right now. Scan more objects or complete a quiz to build the queue."
+                    : string.Join("\n", recommendations.Select(item =>
+                        item.Progress.QuizAttempts == 0
+                            ? $"{item.Entry.CanonicalObjectLabel}  |  {item.Reason}"
+                            : $"{item.Entry.CanonicalObjectLabel}  |  {item.Progress.QuizAccuracy:P0} accuracy  |  {item.Reason}"));
             }
         }
 
@@ -598,7 +679,6 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 !string.Equals(m_LastTrackedScanVocabularyId, currentEntry.Id, StringComparison.OrdinalIgnoreCase))
             {
                 m_LastTrackedScanVocabularyId = currentEntry.Id;
-                LearningActivityTracker.Record(5);
                 RefreshHomeSummary();
             }
 
@@ -1214,16 +1294,18 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 var capturedIndex = index;
                 m_QuizOptionButtons[index] = CreateButton(
                     content.transform,
-                    $"Quiz Option {index + 1}",
+                    string.Empty,
                     font,
                     () => AnswerQuizOption(capturedIndex),
                     84f,
                     LearningButtonStyle.Surface,
                     LearningUiTheme.RadiusMedium);
+                m_QuizOptionButtons[index].gameObject.name = $"Quiz Option {index + 1} Button";
                 m_QuizOptionLabels[index] = m_QuizOptionButtons[index].GetComponentInChildren<TMP_Text>();
                 m_QuizOptionLabels[index].alignment = TextAlignmentOptions.Center;
                 m_QuizOptionLabels[index].fontSize = 27f;
                 LearningUiTheme.StyleSurface(m_QuizOptionButtons[index].GetComponent<Image>(), LearningUiTheme.Card, LearningUiTheme.RadiusMedium, true, new Vector2(0f, -4f));
+                m_QuizOptionButtons[index].gameObject.SetActive(false);
             }
 
             m_QuizFeedbackText = CreateText(content.transform, "Quiz Feedback", "Choose the best translation.", 23f, font, LearningUiTheme.Muted, TextAlignmentOptions.Center);
@@ -1291,7 +1373,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             var title = CreateText(headerCopy.transform, "Progress Title", "Your progress", 38f, font, LearningUiTheme.Ink);
             title.fontStyle = FontStyles.Bold;
             SetPreferredHeight(title.gameObject, 46f);
-            var subtitle = CreateText(headerCopy.transform, "Progress Subtitle", "Every scan moves you forward", 21f, font, LearningUiTheme.Muted);
+            var subtitle = CreateText(headerCopy.transform, "Progress Subtitle", "Your learning evidence, clearly explained", 21f, font, LearningUiTheme.Muted);
             SetPreferredHeight(subtitle.gameObject, 30f);
 
             var levelCard = CreatePanel(content.transform, "Level Card", LearningUiTheme.Primary, LearningUiTheme.RadiusLarge, 238f);
@@ -1312,7 +1394,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             m_LevelText = CreateText(levelCopy.transform, "Level Value", "Level 1", 38f, font, Color.white);
             m_LevelText.fontStyle = FontStyles.Bold;
             SetPreferredHeight(m_LevelText.gameObject, 46f);
-            m_LearningTimeText = CreateText(levelCopy.transform, "Learning Time", "00:00 learning time", 20f, font, LearningUiTheme.WithAlpha(Color.white, 0.85f));
+            m_LearningTimeText = CreateText(levelCopy.transform, "Learning Time", "00:00 focused learning", 20f, font, LearningUiTheme.WithAlpha(Color.white, 0.85f));
             SetPreferredHeight(m_LearningTimeText.gameObject, 30f);
             m_XpProgressText = CreateText(levelCard.transform, "XP Progress", "0 / 250 XP", 21f, font, Color.white);
             m_XpProgressText.fontStyle = FontStyles.Bold;
@@ -1324,7 +1406,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
             var statsGrid = new GameObject("Progress Stats", typeof(RectTransform), typeof(LayoutElement), typeof(GridLayoutGroup));
             statsGrid.transform.SetParent(content.transform, false);
-            SetPreferredHeight(statsGrid, 358f);
+            SetPreferredHeight(statsGrid, 546f);
             var grid = statsGrid.GetComponent<GridLayoutGroup>();
             grid.cellSize = new Vector2(260f, 170f);
             grid.spacing = new Vector2(18f, 18f);
@@ -1332,12 +1414,14 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             grid.constraintCount = 2;
             grid.childAlignment = TextAnchor.UpperCenter;
             statsGrid.AddComponent<LearningResponsiveGrid>().Configure(2, 18f, 170f);
-            CreateStatCard(statsGrid.transform, "Words learned", LearningUiIconType.Star, LearningUiTheme.Primary, LearningUiTheme.PrimarySoft, out m_WordsLearnedText, font);
+            CreateStatCard(statsGrid.transform, "Vocabulary mastery", LearningUiIconType.Star, LearningUiTheme.Primary, LearningUiTheme.PrimarySoft, out m_VocabularyMasteryText, font);
+            CreateStatCard(statsGrid.transform, "Quiz accuracy", LearningUiIconType.Quiz, LearningUiTheme.Secondary, LearningUiTheme.SecondarySoft, out m_QuizAccuracyValueText, font);
+            CreateStatCard(statsGrid.transform, "Retention score", LearningUiIconType.Chart, LearningUiTheme.Lavender, LearningUiTheme.LavenderSoft, out m_RetentionScoreText, font);
+            CreateStatCard(statsGrid.transform, "Needs revision", LearningUiIconType.Refresh, LearningUiTheme.Error, LearningUiTheme.ErrorSoft, out m_RevisionCountText, font);
             CreateStatCard(statsGrid.transform, "Objects scanned", LearningUiIconType.Camera, LearningUiTheme.Secondary, LearningUiTheme.SecondarySoft, out m_ObjectsScannedText, font);
-            CreateStatCard(statsGrid.transform, "Quiz accuracy", LearningUiIconType.Quiz, LearningUiTheme.Lavender, LearningUiTheme.LavenderSoft, out m_QuizAccuracyValueText, font);
             CreateStatCard(statsGrid.transform, "Current streak", LearningUiIconType.Flame, LearningUiTheme.Warning, LearningUiTheme.AccentSoft, out m_StreakValueText, font);
 
-            var weeklyCard = CreatePanel(content.transform, "Weekly Activity Card", LearningUiTheme.Card, LearningUiTheme.RadiusLarge, 316f);
+            var weeklyCard = CreatePanel(content.transform, "Weekly Activity Card", LearningUiTheme.Card, LearningUiTheme.RadiusLarge, 438f);
             LearningUiTheme.StyleSurface(weeklyCard.GetComponent<Image>(), LearningUiTheme.Card, LearningUiTheme.RadiusLarge, true, new Vector2(0f, -6f));
             var weeklyLayout = weeklyCard.AddComponent<VerticalLayoutGroup>();
             weeklyLayout.padding = new RectOffset(28, 28, 24, 22);
@@ -1351,11 +1435,27 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             SetPreferredHeight(weeklyTitle.gameObject, 42f);
             var chart = CreateHorizontalGroup(weeklyCard.transform, "Weekly Activity Graph", 212f, 12f, true);
             m_WeeklyBars = new Image[7];
+            m_WeeklyCountLabels = new TMP_Text[7];
             m_WeeklyDayLabels = new TMP_Text[7];
             for (var index = 0; index < 7; index++)
-                CreateActivityBar(chart.transform, index, font, out m_WeeklyBars[index], out m_WeeklyDayLabels[index]);
+                CreateActivityBar(
+                    chart.transform,
+                    index,
+                    font,
+                    out m_WeeklyBars[index],
+                    out m_WeeklyCountLabels[index],
+                    out m_WeeklyDayLabels[index]);
+            m_WeeklySummaryText = CreateText(
+                weeklyCard.transform,
+                "Weekly Summary",
+                "0 scans  |  0 quizzes  |  0 focused min\nNo quiz answers yet\nBars: scans + finished quizzes.",
+                20f,
+                font,
+                LearningUiTheme.Muted);
+            m_WeeklySummaryText.textWrappingMode = TextWrappingModes.Normal;
+            SetPreferredHeight(m_WeeklySummaryText.gameObject, 92f);
 
-            var achievementCard = CreatePanel(content.transform, "Achievement Card", LearningUiTheme.AccentSoft, LearningUiTheme.RadiusLarge, 194f);
+            var achievementCard = CreatePanel(content.transform, "Recent Learning Activity Card", LearningUiTheme.AccentSoft, LearningUiTheme.RadiusLarge, 236f);
             var achievementLayout = achievementCard.AddComponent<HorizontalLayoutGroup>();
             achievementLayout.padding = new RectOffset(28, 28, 24, 24);
             achievementLayout.spacing = 22f;
@@ -1368,16 +1468,16 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             CreateIcon(achievementIcon.transform, LearningUiIconType.Trophy, Color.white, 58f);
             var achievementCopy = CreateVerticalGroup(achievementCard.transform, "Achievement Copy", 4f);
             SetFlexibleWidth(achievementCopy, 1f);
-            SetPreferredHeight(achievementCopy, 128f);
-            var achievementTitle = CreateText(achievementCopy.transform, "Achievement Title", "Recent achievement", 21f, font, LearningUiTheme.Warning);
+            SetPreferredHeight(achievementCopy, 172f);
+            var achievementTitle = CreateText(achievementCopy.transform, "Achievement Title", "Recent learning activity", 21f, font, LearningUiTheme.Warning);
             achievementTitle.fontStyle = FontStyles.Bold;
             SetPreferredHeight(achievementTitle.gameObject, 36f);
-            m_ProgressSummaryText = CreateText(achievementCopy.transform, "Progress Summary", "Your first achievement is one scan away", 27f, font, LearningUiTheme.Ink);
+            m_ProgressSummaryText = CreateText(achievementCopy.transform, "Progress Summary", "No scans or completed quizzes yet today", 24f, font, LearningUiTheme.Ink);
             m_ProgressSummaryText.fontStyle = FontStyles.Bold;
             m_ProgressSummaryText.textWrappingMode = TextWrappingModes.Normal;
-            SetPreferredHeight(m_ProgressSummaryText.gameObject, 88f);
+            SetPreferredHeight(m_ProgressSummaryText.gameObject, 128f);
 
-            var practiceCard = CreatePanel(content.transform, "Practice Card", LearningUiTheme.Card, LearningUiTheme.RadiusLarge, 286f);
+            var practiceCard = CreatePanel(content.transform, "Practice Card", LearningUiTheme.Card, LearningUiTheme.RadiusLarge, 322f);
             LearningUiTheme.StyleSurface(practiceCard.GetComponent<Image>(), LearningUiTheme.Card, LearningUiTheme.RadiusLarge, true, new Vector2(0f, -5f));
             var practiceLayout = practiceCard.AddComponent<VerticalLayoutGroup>();
             practiceLayout.padding = new RectOffset(28, 28, 24, 24);
@@ -1386,13 +1486,13 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             practiceLayout.childControlHeight = true;
             practiceLayout.childForceExpandWidth = true;
             practiceLayout.childForceExpandHeight = false;
-            var practiceTitle = CreateText(practiceCard.transform, "Practice Title", "Recommended next", 27f, font, LearningUiTheme.Ink);
+            var practiceTitle = CreateText(practiceCard.transform, "Practice Title", "Adaptive revision queue", 27f, font, LearningUiTheme.Ink);
             practiceTitle.fontStyle = FontStyles.Bold;
             SetPreferredHeight(practiceTitle.gameObject, 42f);
-            m_RevisionText = CreateText(practiceCard.transform, "Revision Recommendations", "Scan an object to begin building your practice list.", 22f, font, LearningUiTheme.Muted);
+            m_RevisionText = CreateText(practiceCard.transform, "Revision Recommendations", "Complete a quiz to identify words that need more practice.", 22f, font, LearningUiTheme.Muted);
             m_RevisionText.textWrappingMode = TextWrappingModes.Normal;
             m_RevisionText.overflowMode = TextOverflowModes.Ellipsis;
-            SetPreferredHeight(m_RevisionText.gameObject, 184f);
+            SetPreferredHeight(m_RevisionText.gameObject, 220f);
 
             SetVisible(m_ProgressCanvasGroup, false);
         }
@@ -1620,7 +1720,12 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
         static LearningUiIcon CreateIcon(Transform parent, LearningUiIconType iconType, Color color, float size)
         {
-            var iconObject = new GameObject($"{iconType} Icon", typeof(RectTransform), typeof(LearningUiIcon), typeof(LayoutElement));
+            var iconObject = new GameObject(
+                $"{iconType} Icon",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(LearningUiIcon),
+                typeof(LayoutElement));
             iconObject.transform.SetParent(parent, false);
             var rect = iconObject.GetComponent<RectTransform>();
             rect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -1676,14 +1781,34 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             int index,
             TMP_FontAsset font,
             out Image fill,
+            out TMP_Text countLabel,
             out TMP_Text dayLabel)
         {
-            var column = CreateVerticalGroup(parent, $"Activity Day {index + 1}", 8f);
-            var track = CreatePanel(column.transform, $"Activity Track {index + 1}", LearningUiTheme.PrimarySoft, 14f, 154f);
-            fill = track.GetComponent<Image>();
-            dayLabel = CreateText(column.transform, $"Activity Day Label {index + 1}", "M", 17f, font, LearningUiTheme.Muted, TextAlignmentOptions.Center);
+            var column = CreateVerticalGroup(parent, $"Activity Day {index + 1}", 6f);
+            countLabel = CreateText(column.transform, $"Activity Count {index + 1}", "0", 16f, font, LearningUiTheme.Muted, TextAlignmentOptions.Center);
+            countLabel.fontStyle = FontStyles.Bold;
+            SetPreferredHeight(countLabel.gameObject, 24f);
+            var track = CreatePanel(column.transform, $"Activity Track {index + 1}", LearningUiTheme.PrimarySoft, 14f, 140f);
+            var fillObject = CreatePanel(track.transform, $"Activity Fill {index + 1}", LearningUiTheme.Primary, 12f);
+            var fillRect = fillObject.GetComponent<RectTransform>();
+            fillRect.anchorMin = Vector2.zero;
+            fillRect.anchorMax = new Vector2(1f, 0f);
+            fillRect.pivot = new Vector2(0.5f, 0f);
+            fillRect.offsetMin = new Vector2(8f, 0f);
+            fillRect.offsetMax = new Vector2(-8f, 0f);
+            fill = fillObject.GetComponent<Image>();
+            fill.enabled = false;
+            dayLabel = CreateText(column.transform, $"Activity Day Label {index + 1}", "Mon", 16f, font, LearningUiTheme.Muted, TextAlignmentOptions.Center);
             dayLabel.fontStyle = FontStyles.Bold;
-            SetPreferredHeight(dayLabel.gameObject, 30f);
+            SetPreferredHeight(dayLabel.gameObject, 26f);
+        }
+
+        static float CalculateActivityBarFill(int activityAmount, int maximumDailyActivity)
+        {
+            if (activityAmount <= 0 || maximumDailyActivity <= 0)
+                return 0f;
+
+            return Mathf.Clamp01(activityAmount / (float)maximumDailyActivity);
         }
 
         static GameObject CreatePanel(
@@ -1707,7 +1832,12 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             Color color,
             float height = -1f)
         {
-            var pill = new GameObject(name, typeof(RectTransform), typeof(CanvasGroup), typeof(LearningPillGraphic));
+            var pill = new GameObject(
+                name,
+                typeof(RectTransform),
+                typeof(CanvasGroup),
+                typeof(CanvasRenderer),
+                typeof(LearningPillGraphic));
             pill.transform.SetParent(parent, false);
             var graphic = pill.GetComponent<LearningPillGraphic>();
             graphic.color = color;
@@ -1740,6 +1870,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 text.font = font;
 
             SetPreferredHeight(textObject, Mathf.Max(46f, size + 16f));
+            NativeIndicText.Track(text);
             return text;
         }
 
@@ -2086,16 +2217,47 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 m_StatusText.text = message;
         }
 
+        void TransitionToScreen(ExperienceScreen nextScreen)
+        {
+            if (!UnityEngine.Application.isPlaying)
+            {
+                m_CurrentScreen = nextScreen;
+                m_SessionSegmentStartedAt = -1f;
+                return;
+            }
+
+            SaveSessionDuration(false);
+            m_CurrentScreen = nextScreen;
+            if (!IsLearningScreen(nextScreen))
+                return;
+
+            m_SessionSegmentStartedAt = Time.realtimeSinceStartup;
+            m_NextSessionSaveAt = m_SessionSegmentStartedAt + 30f;
+        }
+
+        static bool IsLearningScreen(ExperienceScreen screen)
+        {
+            return screen == ExperienceScreen.Scan || screen == ExperienceScreen.Quiz;
+        }
+
         float GetTotalLearningSeconds()
         {
             var savedSeconds = PlayerPrefs.GetFloat(TotalLearningSecondsKey, 0f);
-            var activeSeconds = Mathf.Max(0f, Time.realtimeSinceStartup - m_SessionSegmentStartedAt);
+            var activeSeconds = m_SessionSegmentStartedAt < 0f
+                ? 0f
+                : Mathf.Max(0f, Time.realtimeSinceStartup - m_SessionSegmentStartedAt);
             return savedSeconds + activeSeconds;
         }
 
-        void SaveSessionDuration()
+        void SaveSessionDuration(bool continueTracking)
         {
-            if (m_SessionSegmentStartedAt <= 0f)
+            if (!UnityEngine.Application.isPlaying)
+            {
+                m_SessionSegmentStartedAt = -1f;
+                return;
+            }
+
+            if (m_SessionSegmentStartedAt < 0f)
                 return;
 
             var now = Time.realtimeSinceStartup;
@@ -2106,9 +2268,12 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                     TotalLearningSecondsKey,
                     PlayerPrefs.GetFloat(TotalLearningSecondsKey, 0f) + segmentSeconds);
                 PlayerPrefs.Save();
+                LearningActivityTracker.RecordLearningSeconds(segmentSeconds);
             }
 
-            m_SessionSegmentStartedAt = now;
+            m_SessionSegmentStartedAt = continueTracking && IsLearningScreen(m_CurrentScreen)
+                ? now
+                : -1f;
         }
     }
 }

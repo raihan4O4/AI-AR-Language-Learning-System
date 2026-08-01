@@ -40,15 +40,12 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         [SerializeField, Min(0f)]
         float m_DetectionHoldSeconds = 2f;
 
-        [SerializeField, Min(0f)]
-        float m_ViewRecordingCooldownSeconds = 12f;
-
         readonly List<RecognitionPresentation> m_RecognitionPresentations = new List<RecognitionPresentation>(8);
         readonly List<ObjectRecognitionResult> m_StableRecognitionResults = new List<ObjectRecognitionResult>(8);
         readonly Dictionary<string, TrackedRecognition> m_TrackedRecognitions =
             new Dictionary<string, TrackedRecognition>(StringComparer.OrdinalIgnoreCase);
-        readonly Dictionary<string, float> m_LastViewRecordedAt =
-            new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
+        readonly HashSet<string> m_RecordedVocabularyIdsThisScanSession =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         VocabularyLookupResult m_CurrentLookup;
         NormalizedBoundingBox m_CurrentBoundingBox;
         bool m_IsSubscribed;
@@ -89,6 +86,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         {
             UnsubscribeFromRecognizer();
             m_CompositionRoot?.ObjectRecognitionService?.StopRecognition();
+            m_RecordedVocabularyIdsThisScanSession.Clear();
         }
 
         public void SetLearningLanguage(int languageIndex)
@@ -113,6 +111,8 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
             m_CompositionRoot.TextToSpeechService.Speak(m_CurrentLookup.Translation);
             m_CompositionRoot.LearningService.RecordPronunciationAttempt(m_CurrentLookup.Entry, m_LearningLanguage);
+            if (UnityEngine.Application.isPlaying)
+                LearningActivityTracker.RecordPronunciationPlayed();
         }
 
         public void ResumeRecognition()
@@ -124,6 +124,22 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         public void PauseRecognition()
         {
             m_CompositionRoot?.ObjectRecognitionService?.StopRecognition();
+            m_RecordedVocabularyIdsThisScanSession.Clear();
+            PublishRecognitionPresentations(Array.Empty<RecognitionPresentation>());
+        }
+
+        /// <summary>
+        /// Clears only the transient object presentation state. Learning progress and the selected
+        /// language remain untouched, while a subsequent detector update can populate a fresh card.
+        /// </summary>
+        public void ResetObjectDisplayState()
+        {
+            m_CurrentLookup = null;
+            m_CurrentBoundingBox = default;
+            m_RecognitionPresentations.Clear();
+            m_StableRecognitionResults.Clear();
+            m_TrackedRecognitions.Clear();
+            m_RecordedVocabularyIdsThisScanSession.Clear();
             PublishRecognitionPresentations(Array.Empty<RecognitionPresentation>());
         }
 
@@ -212,7 +228,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             if (primaryLookup != null && primaryRecognitionResult != null)
             {
                 m_CurrentLookup = primaryLookup;
-                RecordObjectViewIfDue(primaryLookup.Entry);
+                RecordObjectViewIfNewForScanSession(primaryLookup.Entry);
                 PublishVocabulary(
                     primaryLookup.Entry,
                     primaryLookup.RecognizedLabel,
@@ -487,20 +503,19 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             return m_StableRecognitionResults;
         }
 
-        void RecordObjectViewIfDue(VocabularyEntry entry)
+        void RecordObjectViewIfNewForScanSession(VocabularyEntry entry)
         {
-            if (entry == null)
+            if (!TryMarkObjectViewedThisScanSession(entry))
                 return;
 
-            var now = Time.unscaledTime;
-            if (m_LastViewRecordedAt.TryGetValue(entry.Id, out var lastRecordedAt) &&
-                now - lastRecordedAt < m_ViewRecordingCooldownSeconds)
-            {
-                return;
-            }
-
-            m_LastViewRecordedAt[entry.Id] = now;
             m_CompositionRoot.LearningService.RecordObjectViewed(entry, m_LearningLanguage);
+            if (UnityEngine.Application.isPlaying)
+                LearningActivityTracker.RecordObjectScan();
+        }
+
+        bool TryMarkObjectViewedThisScanSession(VocabularyEntry entry)
+        {
+            return entry != null && m_RecordedVocabularyIdsThisScanSession.Add(entry.Id);
         }
 
         void LogRecognition(string message)
@@ -644,6 +659,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         protected virtual void Awake()
         {
             CacheReferences();
+            NativeIndicText.Track(m_LabelText);
             EnsureBoxView(0);
             HideAllBoxViews();
         }
@@ -970,6 +986,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             }
 
             labelText.raycastTarget = false;
+            NativeIndicText.Track(labelText);
             return labelText;
         }
 

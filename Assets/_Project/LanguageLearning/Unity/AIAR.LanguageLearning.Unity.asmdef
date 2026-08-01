@@ -4,6 +4,7 @@
     "references": [
         "AIAR.LanguageLearning.Domain",
         "AIAR.LanguageLearning.Application",
+        "LightSide.UniText",
         "Unity.TextMeshPro",
         "Unity.InferenceEngine",
         "Unity.XR.ARFoundation",

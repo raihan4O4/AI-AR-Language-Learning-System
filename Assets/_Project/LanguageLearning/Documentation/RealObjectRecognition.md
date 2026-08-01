@@ -26,7 +26,9 @@ dropped instead of queued.
 ## Assets and reproducibility
 
 - Model: `ObjectDetection/Models/yolo11n_320.onnx`
-- Labels: `ObjectDetection/Models/coco80.txt`
+- Detector labels: `ObjectDetection/Models/coco80.txt`
+- Aligned localized labels: `ObjectDetection/Models/coco80.en.txt`, `coco80.hi.txt`, `coco80.ml.txt`,
+  and `coco80.fr.txt`
 - Contract and golden result: `ObjectDetection/Models/yolo11n_320.metadata.json`
 - Validation image: `ObjectDetection/Validation/bus.jpg`
 - Export tool: `Tools/ObjectDetection/export_yolo11_for_unity.py`
@@ -69,7 +71,8 @@ scene wiring. Release acceptance still requires an ARCore-capable Android phone:
 1. Confirm the preview remains smooth while the detection count increases.
 2. Test portrait and landscape orientation if landscape is enabled.
 3. Verify boxes on near, central, and edge objects.
-4. Verify the ten target COCO classes and confidence labels.
+4. Sample classes throughout the 80-class list and verify each detection has a translated vocabulary
+   label and can also appear as a quiz target.
 5. Switch EN, HI, ML, and FR while scanning.
 6. Confirm Speak uses the selected language.
 7. Leave and re-enter Scan repeatedly and confirm memory remains stable.

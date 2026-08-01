@@ -832,7 +832,6 @@ MonoBehaviour:
   m_DebugRecognitionLogging: 0
   m_MinimumStableFrames: 1
   m_DetectionHoldSeconds: 2
-  m_ViewRecordingCooldownSeconds: 12
 --- !u!114 &1196477788
 MonoBehaviour:
   m_ObjectHideFlags: 0

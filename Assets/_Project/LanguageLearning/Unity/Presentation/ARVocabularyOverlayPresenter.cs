@@ -49,6 +49,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         {
             ApplyMultilingualFont();
             ApplyModernLayout();
+            NativeIndicText.Track(m_TranslatedWordText);
             Hide();
         }
 
@@ -105,6 +106,30 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         public void Hide()
         {
             SetVisible(false);
+        }
+
+        public void ResetObjectDisplay()
+        {
+            if (m_ShowAnimation != null)
+            {
+                StopCoroutine(m_ShowAnimation);
+                m_ShowAnimation = null;
+            }
+
+            if (m_TranslatedWordText != null)
+                m_TranslatedWordText.text = string.Empty;
+            if (m_SourceWordText != null)
+                m_SourceWordText.text = string.Empty;
+            if (m_PhoneticHintText != null)
+                m_PhoneticHintText.text = string.Empty;
+            if (m_LanguageText != null)
+                m_LanguageText.text = string.Empty;
+            if (m_ConfidenceText != null)
+                m_ConfidenceText.text = "Looking for a confident match";
+
+            m_LastTranslatedWord = null;
+            m_LastTranslatedLanguage = null;
+            Hide();
         }
 
         public void SetScanDisplayEnabled(bool enabled)
@@ -175,7 +200,11 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 m_PronunciationButton.targetGraphic = buttonObject.GetComponent<Image>();
                 m_PronunciationButton.onClick.AddListener(PlayPronunciation);
                 LearningUiTheme.StyleButton(m_PronunciationButton, LearningButtonStyle.Soft, LearningUiTheme.RadiusPill);
-                var iconObject = new GameObject("Speak Icon", typeof(RectTransform), typeof(LearningUiIcon));
+                var iconObject = new GameObject(
+                    "Speak Icon",
+                    typeof(RectTransform),
+                    typeof(CanvasRenderer),
+                    typeof(LearningUiIcon));
                 iconObject.transform.SetParent(buttonObject.transform, false);
                 var iconRect = iconObject.GetComponent<RectTransform>();
                 iconRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -196,7 +225,6 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 return;
 
             m_SessionController.SpeakCurrentWord();
-            LearningActivityTracker.Record(3);
         }
 
         static void ConfigureText(
@@ -260,12 +288,13 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             }
 
             ApplyFont(m_TranslatedWordText, fontAsset);
-            m_TranslatedWordText.enabled = true;
             m_TranslatedWordText.SetText(translatedWord);
+            NativeIndicText.Refresh(m_TranslatedWordText);
             if (m_TranslatedWordText.rectTransform.parent is RectTransform layoutRoot)
                 LayoutRebuilder.ForceRebuildLayoutImmediate(layoutRoot);
             m_TranslatedWordText.SetAllDirty();
-            m_TranslatedWordText.ForceMeshUpdate(true, true);
+            if (m_TranslatedWordText.enabled)
+                m_TranslatedWordText.ForceMeshUpdate(true, true);
 
             m_LastTranslatedWord = translatedWord;
             m_LastTranslatedLanguage = language;
