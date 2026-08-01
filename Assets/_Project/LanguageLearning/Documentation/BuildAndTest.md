@@ -45,8 +45,9 @@ The menu command reruns the scene setup first, then starts a development Android
 4. Confirm that the Home screen appears without a session-subsystem startup error.
 5. Tap `Scan`; confirm the permission prompt appears and the live camera opens.
 6. Move the phone until AR tracking starts.
-7. Point at COCO objects such as person, backpack, bottle, cup, chair, laptop, mouse, keyboard,
-   cell phone, or book; labels and boxes should come only from YOLO11 predictions.
+7. Point at a variety of the 80 COCO objects, including classes outside the original vocabulary such
+   as motorcycle, traffic light, dog, umbrella, pizza, couch, refrigerator, or toothbrush. Every
+   detected class should show its localized vocabulary label and bounding box.
 8. Tap `Speak` to test Android Text-to-Speech.
 9. Tap `EN`, `HI`, `ML`, or `FR` to switch the learning language, then use Back to return Home.
 10. Open `Quiz`, select each language, answer a question, tap Next, and confirm the prompt changes.
@@ -63,7 +64,8 @@ Run the EditMode suite from Unity Test Runner. It covers:
 - label normalization and false-positive prevention;
 - bounded viewport coordinates;
 - progress, quiz generation, retention, and adaptive revision;
-- complete four-language catalog loading;
+- complete four-language coverage for every COCO class, aligned localized label files, detection
+  lookup, and quiz-question generation;
 - Main scene/runtime/model wiring;
 - Home, Quiz, Next, and Back button wiring;
 - Scan language, Speak, real-time scheduling budget, and production logging configuration;

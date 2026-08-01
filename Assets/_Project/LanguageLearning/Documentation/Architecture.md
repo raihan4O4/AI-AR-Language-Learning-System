@@ -14,7 +14,8 @@ The first working MVP should prove the full learning loop with a controlled voca
 5. Record views, pronunciation attempts, and quiz outcomes.
 6. Recommend weak or unseen words for revision.
 
-The current vocabulary catalog contains 32 common objects across English, Hindi, Malayalam, and French.
+The vocabulary catalog covers all 80 COCO detector classes across English, Hindi, Malayalam, and
+French, while retaining the original supplemental learning words for backward compatibility.
 
 ## Folder Layout
 
@@ -31,7 +32,8 @@ The current vocabulary catalog contains 32 common objects across English, Hindi,
 : Reproducibly exported YOLO11n ONNX, exact preprocessing/postprocessing metadata, COCO labels, and the golden validation image.
 
 `Assets/_Project/LanguageLearning/Content/Resources/Vocabulary/vocabulary_catalog.json`
-: MVP word catalog. Add words here first; avoid hardcoding vocabulary in scenes.
+: Runtime word catalog. Every COCO label has a distinct canonical entry and four translations; avoid
+hardcoding vocabulary in scenes.
 
 `Assets/_Project/LanguageLearning/Tests/EditMode`
 : EditMode tests for matching, quiz generation, progress, and adaptive recommendations.
@@ -82,7 +84,9 @@ YOLO11n detector, vocabulary repository, TTS adapter, learning session, and pool
 
 The setup command `AI-AR Language Learning > Setup Main Scene` rebuilds the wiring deterministically.
 It requires the exact `yolo11n_320.onnx` asset and fails loudly if the verified model or its 80 COCO
-labels are absent. There is no mock or silent detector fallback in the production scene.
+labels are absent. The aligned `coco80.en.txt`, `coco80.hi.txt`, `coco80.ml.txt`, and `coco80.fr.txt`
+assets provide a reviewable localization list in detector class order. There is no mock or silent
+detector fallback in the production scene.
 
 The Home screen is deliberately non-AR. Selecting Scan requests Android camera permission, verifies
 AR Foundation availability, enables the AR session/camera/background, waits for initialization or

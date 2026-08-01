@@ -22,6 +22,21 @@ namespace AIAR.LanguageLearning.Application.Services
             if (candidates.Length == 0)
                 return false;
 
+            // Prefer an entry whose canonical label is the detector label. Some of the
+            // original learning words have broad aliases (for example, "bag" matched
+            // both COCO's "backpack" and "handbag"). Exact canonical matching keeps
+            // every detector class distinct while retaining those legacy aliases.
+            foreach (var vocabularyEntry in vocabulary)
+            {
+                var canonicalLabel = Normalize(vocabularyEntry.CanonicalObjectLabel);
+                if (canonicalLabel.Length > 0 &&
+                    candidates.Contains(canonicalLabel, StringComparer.OrdinalIgnoreCase))
+                {
+                    entry = vocabularyEntry;
+                    return true;
+                }
+            }
+
             foreach (var vocabularyEntry in vocabulary)
             {
                 var normalizedLabels = vocabularyEntry.RecognitionLabels

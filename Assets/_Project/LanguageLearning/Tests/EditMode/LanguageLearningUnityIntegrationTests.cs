@@ -1,4 +1,5 @@
 using AIAR.LanguageLearning.Application.Models;
+using AIAR.LanguageLearning.Application.Services;
 using AIAR.LanguageLearning.Unity.Bootstrap;
 using AIAR.LanguageLearning.Unity.Data;
 using AIAR.LanguageLearning.Unity.ObjectDetection;
@@ -9,6 +10,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.UI;
+using System.Linq;
 
 namespace AIAR.LanguageLearning.Tests
 {
@@ -17,6 +19,13 @@ namespace AIAR.LanguageLearning.Tests
         const string MainScenePath = "Assets/Scenes/Main.unity";
         const string ModelPath = "Assets/_Project/LanguageLearning/ObjectDetection/Models/yolo11n_320.onnx";
         const string LabelsPath = "Assets/_Project/LanguageLearning/ObjectDetection/Models/coco80.txt";
+        static readonly string[] LocalizedLabelsPaths =
+        {
+            "Assets/_Project/LanguageLearning/ObjectDetection/Models/coco80.en.txt",
+            "Assets/_Project/LanguageLearning/ObjectDetection/Models/coco80.hi.txt",
+            "Assets/_Project/LanguageLearning/ObjectDetection/Models/coco80.ml.txt",
+            "Assets/_Project/LanguageLearning/ObjectDetection/Models/coco80.fr.txt"
+        };
 
         [Test]
         public void MainScene_HasValidMvpRuntimeWiring()
@@ -715,20 +724,80 @@ namespace AIAR.LanguageLearning.Tests
         }
 
         [Test]
-        public void VocabularyCatalog_LoadsCompleteMultilingualMvpContent()
+        public void VocabularyCatalog_CoversEveryCocoClassForDetectionAndQuiz()
         {
+            EditorSceneManager.OpenScene(MainScenePath, OpenSceneMode.Single);
             var repository = Object.FindAnyObjectByType<ResourcesVocabularyRepository>();
             Assert.IsNotNull(repository);
 
             var entries = repository.GetAll();
+            var labelAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(LabelsPath);
+            var cocoLabels = Yolo11Contract.ParseAndValidateLabels(labelAsset);
+            var normalizer = new ObjectLabelNormalizer();
+            var quizService = new QuizService();
 
-            Assert.GreaterOrEqual(entries.Count, 30);
-            foreach (var entry in entries)
+            Assert.AreEqual(80, cocoLabels.Length);
+            Assert.GreaterOrEqual(entries.Count, cocoLabels.Length);
+            foreach (var cocoLabel in cocoLabels)
             {
-                Assert.IsTrue(entry.TryGetTranslation(Domain.LanguageCode.English, out _), $"{entry.Id} is missing English.");
-                Assert.IsTrue(entry.TryGetTranslation(Domain.LanguageCode.Hindi, out _), $"{entry.Id} is missing Hindi.");
-                Assert.IsTrue(entry.TryGetTranslation(Domain.LanguageCode.Malayalam, out _), $"{entry.Id} is missing Malayalam.");
-                Assert.IsTrue(entry.TryGetTranslation(Domain.LanguageCode.French, out _), $"{entry.Id} is missing French.");
+                var exactEntries = entries
+                    .Where(entry => string.Equals(
+                        entry.CanonicalObjectLabel,
+                        cocoLabel,
+                        System.StringComparison.OrdinalIgnoreCase))
+                    .ToArray();
+                Assert.AreEqual(1, exactEntries.Length, $"COCO class '{cocoLabel}' needs one canonical vocabulary entry.");
+
+                var entry = exactEntries[0];
+                Assert.IsTrue(normalizer.TryFindBestMatch(cocoLabel, entries, out var match));
+                Assert.AreSame(entry, match, $"Detection label '{cocoLabel}' resolved to the wrong vocabulary entry.");
+
+                foreach (Domain.LanguageCode language in System.Enum.GetValues(typeof(Domain.LanguageCode)))
+                {
+                    Assert.IsTrue(entry.TryGetTranslation(language, out var translation),
+                        $"{entry.Id} is missing {language}.");
+                    Assert.IsFalse(string.IsNullOrWhiteSpace(translation.Text),
+                        $"{entry.Id} has an empty {language} translation.");
+                    Assert.IsFalse(string.IsNullOrWhiteSpace(translation.PhoneticHint),
+                        $"{entry.Id} has an empty {language} phonetic hint.");
+                    Assert.IsFalse(string.IsNullOrWhiteSpace(translation.PronunciationLocale),
+                        $"{entry.Id} has an empty {language} pronunciation locale.");
+
+                    var question = quizService.CreateTranslationQuestion(
+                        entry,
+                        language,
+                        entries,
+                        optionCount: 4,
+                        seed: 1000 + System.Array.IndexOf(cocoLabels, cocoLabel));
+                    Assert.AreEqual(entry.Id, question.TargetVocabularyId);
+                    Assert.AreEqual(translation.Text, question.Options[question.CorrectOptionIndex].Text);
+                }
+            }
+
+            var languages = (Domain.LanguageCode[])System.Enum.GetValues(typeof(Domain.LanguageCode));
+            Assert.AreEqual(languages.Length, LocalizedLabelsPaths.Length);
+            for (var languageIndex = 0; languageIndex < languages.Length; languageIndex++)
+            {
+                var localizedAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(LocalizedLabelsPaths[languageIndex]);
+                Assert.IsNotNull(localizedAsset, $"Missing COCO localization file for {languages[languageIndex]}.");
+                var localizedLabels = localizedAsset.text
+                    .Split(new[] { '\r', '\n' }, System.StringSplitOptions.RemoveEmptyEntries)
+                    .Select(label => label.Trim())
+                    .ToArray();
+                Assert.AreEqual(cocoLabels.Length, localizedLabels.Length,
+                    $"The {languages[languageIndex]} COCO localization file is not aligned with coco80.txt.");
+
+                for (var classIndex = 0; classIndex < cocoLabels.Length; classIndex++)
+                {
+                    var entry = entries.Single(item => string.Equals(
+                        item.CanonicalObjectLabel,
+                        cocoLabels[classIndex],
+                        System.StringComparison.OrdinalIgnoreCase));
+                    Assert.AreEqual(
+                        entry.GetRequiredTranslation(languages[languageIndex]).Text,
+                        localizedLabels[classIndex],
+                        $"Localized COCO class {classIndex} is out of sync for {languages[languageIndex]}.");
+                }
             }
         }
 
