@@ -193,7 +193,7 @@ Hierarchy:
     - Level Card
     - Progress Stats grid
     - Weekly Activity Card
-    - Achievement Card
+    - Recent Learning Activity Card
     - Practice Card
 
 Metrics:
@@ -207,8 +207,18 @@ Metrics:
 - Current streak
 - Focused Scan/Quiz learning time
 - Data-scaled seven-day activity with scan, quiz, accuracy, and time summary
-- Recent scans, completed quizzes, explored words, and mastered words
+- Today scans and completed quizzes, with lifetime explored and mastered counts separated below
 - Adaptive revision queue with per-word reason and quiz accuracy
+
+Display patterns:
+
+- Weekly totals use three equal stat chips for object scans, completed quizzes, and focused minutes.
+- Quiz answer quality stays grouped in one card because accuracy is derived from correct and incorrect answers.
+- The chart caption explicitly explains that daily bars combine scans and completed quizzes.
+- Recent activity uses a visible Today period pill with equal scan and quiz metric chips.
+- Lifetime explored and mastered counts stay in a lighter overall-vocabulary footer to avoid mixing time scopes.
+- Adaptive revision uses ranked queue rows: word, evidence badge, and the reason it was prioritized.
+- Empty revision queues use a positive soft-green state instead of an empty text list.
 
 ## Motion guidelines
 

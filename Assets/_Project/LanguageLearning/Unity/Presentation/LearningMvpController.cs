@@ -62,9 +62,25 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         TMP_Text m_QuizQuestionCaptionText;
         TMP_Text m_QuizPromptText;
         TMP_Text m_QuizFeedbackText;
-        TMP_Text m_ProgressSummaryText;
-        TMP_Text m_RevisionText;
-        TMP_Text m_WeeklySummaryText;
+        TMP_Text m_TodayScansValueText;
+        TMP_Text m_TodayQuizzesValueText;
+        TMP_Text m_ExploredWordsValueText;
+        TMP_Text m_MasteredWordsValueText;
+        TMP_Text m_WeeklyScansValueText;
+        TMP_Text m_WeeklyQuizzesValueText;
+        TMP_Text m_WeeklyFocusedMinutesValueText;
+        TMP_Text m_WeeklyQuizAccuracyText;
+        TMP_Text m_WeeklyQuizAnswerDetailText;
+        TMP_Text m_WeeklyChartCaptionText;
+        Image m_WeeklyQuizAccuracyBadge;
+        GameObject m_RevisionCard;
+        GameObject m_RevisionQueueContainer;
+        GameObject m_RevisionEmptyState;
+        GameObject[] m_RevisionItems = Array.Empty<GameObject>();
+        TMP_Text[] m_RevisionWordTexts = Array.Empty<TMP_Text>();
+        TMP_Text[] m_RevisionReasonTexts = Array.Empty<TMP_Text>();
+        TMP_Text[] m_RevisionEvidenceTexts = Array.Empty<TMP_Text>();
+        Image[] m_RevisionEvidenceBadges = Array.Empty<Image>();
         Button[] m_QuizOptionButtons = Array.Empty<Button>();
         TMP_Text[] m_QuizOptionLabels = Array.Empty<TMP_Text>();
         Button[] m_QuizLanguageButtons = Array.Empty<Button>();
@@ -608,34 +624,48 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 }
             }
 
-            if (m_WeeklySummaryText != null)
+            if (m_WeeklyScansValueText != null)
             {
                 var weeklyMinutes = activity.WeeklyLearningSeconds / 60f;
                 var incorrectAnswers = Math.Max(0, activity.WeeklyQuizAnswers - activity.WeeklyQuizCorrect);
-                var answerSummary = activity.WeeklyQuizAnswers == 0
-                    ? "No quiz answers yet"
-                    : $"{activity.WeeklyQuizCorrect} correct  |  {incorrectAnswers} incorrect  |  {activity.WeeklyQuizAccuracy:P0} accuracy";
-                var chartSummary = activity.WeeklyLegacyActivityUnits > 0
-                    ? $"Bars: scans + finished quizzes. {activity.WeeklyLegacyActivityUnits} older actions affect streak only."
-                    : "Bars: scans + finished quizzes.";
-                var scanLabel = activity.WeeklyObjectScans == 1 ? "scan" : "scans";
-                var quizLabel = activity.WeeklyQuizzesCompleted == 1 ? "quiz" : "quizzes";
-                m_WeeklySummaryText.text =
-                    $"{activity.WeeklyObjectScans} {scanLabel}  |  {activity.WeeklyQuizzesCompleted} {quizLabel}  |  {weeklyMinutes:0.#} focused min\n" +
-                    answerSummary + "\n" +
-                    chartSummary;
+                SetMetricText(m_WeeklyScansValueText, activity.WeeklyObjectScans.ToString(), LearningUiTheme.Ink);
+                SetMetricText(m_WeeklyQuizzesValueText, activity.WeeklyQuizzesCompleted.ToString(), LearningUiTheme.Ink);
+                SetMetricText(m_WeeklyFocusedMinutesValueText, $"{weeklyMinutes:0.#}", LearningUiTheme.Ink);
+
+                if (activity.WeeklyQuizAnswers == 0)
+                {
+                    SetMetricText(m_WeeklyQuizAccuracyText, "—", LearningUiTheme.Warning);
+                    m_WeeklyQuizAnswerDetailText.text = "Complete a quiz to unlock answer quality";
+                    LearningUiTheme.StyleSurface(m_WeeklyQuizAccuracyBadge, LearningUiTheme.AccentSoft, LearningUiTheme.RadiusPill);
+                }
+                else
+                {
+                    var accuracyColor = activity.WeeklyQuizAccuracy >= 0.7d
+                        ? LearningUiTheme.PrimaryDark
+                        : LearningUiTheme.Error;
+                    var accuracySurface = activity.WeeklyQuizAccuracy >= 0.7d
+                        ? LearningUiTheme.PrimarySoft
+                        : LearningUiTheme.ErrorSoft;
+                    SetMetricText(m_WeeklyQuizAccuracyText, $"{activity.WeeklyQuizAccuracy:P0}", accuracyColor);
+                    m_WeeklyQuizAnswerDetailText.text =
+                        $"{activity.WeeklyQuizCorrect} correct • {incorrectAnswers} to review";
+                    LearningUiTheme.StyleSurface(m_WeeklyQuizAccuracyBadge, accuracySurface, LearningUiTheme.RadiusPill);
+                }
+
+                m_WeeklyChartCaptionText.text = activity.WeeklyLegacyActivityUnits > 0
+                    ? $"Bars combine object scans and completed quizzes. {activity.WeeklyLegacyActivityUnits} older actions only affect streak."
+                    : "Bars combine object scans and completed quizzes.";
             }
 
-            if (m_ProgressSummaryText != null)
+            if (m_TodayScansValueText != null)
             {
                 var today = activity.WeeklyDays.Length == 0
                     ? default
                     : activity.WeeklyDays[activity.WeeklyDays.Length - 1];
-                var todaySummary = today.ObjectScans == 0 && today.QuizzesCompleted == 0
-                    ? "No scans or completed quizzes yet today"
-                    : $"Today: {today.ObjectScans} scans  |  {today.QuizzesCompleted} quizzes";
-                m_ProgressSummaryText.text =
-                    $"{todaySummary}\n{summary.SeenWords} of {summary.TotalWords} words explored  |  {summary.MasteredWords} mastered";
+                SetMetricText(m_TodayScansValueText, today.ObjectScans.ToString(), LearningUiTheme.Ink);
+                SetMetricText(m_TodayQuizzesValueText, today.QuizzesCompleted.ToString(), LearningUiTheme.Ink);
+                SetMetricText(m_ExploredWordsValueText, $"{summary.SeenWords} / {summary.TotalWords}", LearningUiTheme.PrimaryDark);
+                SetMetricText(m_MasteredWordsValueText, summary.MasteredWords.ToString(), LearningUiTheme.Lavender);
             }
 
             var recommendations = m_CompositionRoot.AdaptiveRevisionService.GetRevisionQueue(
@@ -643,14 +673,51 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 progress,
                 nowUtc,
                 4);
-            if (m_RevisionText != null)
+            if (m_RevisionQueueContainer != null)
             {
-                m_RevisionText.text = recommendations.Count == 0
-                    ? "No learned words need revision right now. Scan more objects or complete a quiz to build the queue."
-                    : string.Join("\n", recommendations.Select(item =>
-                        item.Progress.QuizAttempts == 0
-                            ? $"{item.Entry.CanonicalObjectLabel}  |  {item.Reason}"
-                            : $"{item.Entry.CanonicalObjectLabel}  |  {item.Progress.QuizAccuracy:P0} accuracy  |  {item.Reason}"));
+                var visibleItems = Math.Min(recommendations.Count, m_RevisionItems.Length);
+                m_RevisionQueueContainer.SetActive(visibleItems > 0);
+                m_RevisionEmptyState?.SetActive(visibleItems == 0);
+
+                for (var index = 0; index < m_RevisionItems.Length; index++)
+                {
+                    var isVisible = index < visibleItems;
+                    m_RevisionItems[index].SetActive(isVisible);
+                    if (!isVisible)
+                        continue;
+
+                    var recommendation = recommendations[index];
+                    m_RevisionWordTexts[index].text = FormatWordLabel(recommendation.Entry.CanonicalObjectLabel);
+                    m_RevisionReasonTexts[index].text = recommendation.Reason;
+
+                    var hasQuizEvidence = recommendation.Progress.QuizAttempts > 0;
+                    var accuracy = recommendation.Progress.QuizAccuracy;
+                    m_RevisionEvidenceTexts[index].text = hasQuizEvidence
+                        ? $"{accuracy:P0} ACCURACY"
+                        : "NOT TESTED";
+
+                    var evidenceColor = !hasQuizEvidence
+                        ? LearningUiTheme.Warning
+                        : accuracy < 0.7d
+                            ? LearningUiTheme.Error
+                            : LearningUiTheme.PrimaryDark;
+                    var evidenceSurface = !hasQuizEvidence
+                        ? LearningUiTheme.AccentSoft
+                        : accuracy < 0.7d
+                            ? LearningUiTheme.ErrorSoft
+                            : LearningUiTheme.PrimarySoft;
+                    m_RevisionEvidenceTexts[index].color = evidenceColor;
+                    LearningUiTheme.StyleSurface(
+                        m_RevisionEvidenceBadges[index],
+                        evidenceSurface,
+                        LearningUiTheme.RadiusPill);
+                }
+
+                var queueHeight = visibleItems > 0
+                    ? (visibleItems * 96f) + (Math.Max(0, visibleItems - 1) * 10f)
+                    : 124f;
+                SetPreferredHeight(m_RevisionQueueContainer, queueHeight);
+                SetPreferredHeight(m_RevisionCard, 140f + queueHeight);
             }
         }
 
@@ -1421,7 +1488,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             CreateStatCard(statsGrid.transform, "Objects scanned", LearningUiIconType.Camera, LearningUiTheme.Secondary, LearningUiTheme.SecondarySoft, out m_ObjectsScannedText, font);
             CreateStatCard(statsGrid.transform, "Current streak", LearningUiIconType.Flame, LearningUiTheme.Warning, LearningUiTheme.AccentSoft, out m_StreakValueText, font);
 
-            var weeklyCard = CreatePanel(content.transform, "Weekly Activity Card", LearningUiTheme.Card, LearningUiTheme.RadiusLarge, 438f);
+            var weeklyCard = CreatePanel(content.transform, "Weekly Activity Card", LearningUiTheme.Card, LearningUiTheme.RadiusLarge, 584f);
             LearningUiTheme.StyleSurface(weeklyCard.GetComponent<Image>(), LearningUiTheme.Card, LearningUiTheme.RadiusLarge, true, new Vector2(0f, -6f));
             var weeklyLayout = weeklyCard.AddComponent<VerticalLayoutGroup>();
             weeklyLayout.padding = new RectOffset(28, 28, 24, 22);
@@ -1445,54 +1512,212 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                     out m_WeeklyBars[index],
                     out m_WeeklyCountLabels[index],
                     out m_WeeklyDayLabels[index]);
-            m_WeeklySummaryText = CreateText(
+
+            var weeklyMetrics = CreateHorizontalGroup(
                 weeklyCard.transform,
-                "Weekly Summary",
-                "0 scans  |  0 quizzes  |  0 focused min\nNo quiz answers yet\nBars: scans + finished quizzes.",
-                20f,
+                "Weekly Metric Row",
+                92f,
+                12f,
+                true);
+            CreateMetricChip(
+                weeklyMetrics.transform,
+                "Weekly",
+                "Scans",
+                LearningUiIconType.Camera,
+                LearningUiTheme.PrimaryDark,
+                LearningUiTheme.PrimarySoft,
+                out m_WeeklyScansValueText,
+                font);
+            CreateMetricChip(
+                weeklyMetrics.transform,
+                "Weekly",
+                "Quizzes",
+                LearningUiIconType.Quiz,
+                LearningUiTheme.SecondaryDark,
+                LearningUiTheme.SecondarySoft,
+                out m_WeeklyQuizzesValueText,
+                font);
+            CreateMetricChip(
+                weeklyMetrics.transform,
+                "Weekly",
+                "Focused min",
+                LearningUiIconType.Clock,
+                LearningUiTheme.Lavender,
+                LearningUiTheme.LavenderSoft,
+                out m_WeeklyFocusedMinutesValueText,
+                font);
+            CreateWeeklyQuizQualityCard(weeklyCard.transform, font);
+            m_WeeklyChartCaptionText = CreateText(
+                weeklyCard.transform,
+                "Weekly Chart Caption",
+                "Bars combine object scans and completed quizzes.",
+                17f,
+                font,
+                LearningUiTheme.Muted,
+                TextAlignmentOptions.Center);
+            m_WeeklyChartCaptionText.textWrappingMode = TextWrappingModes.Normal;
+            SetPreferredHeight(m_WeeklyChartCaptionText.gameObject, 34f);
+
+            var recentActivityCard = CreatePanel(
+                content.transform,
+                "Recent Learning Activity Card",
+                LearningUiTheme.Card,
+                LearningUiTheme.RadiusLarge,
+                306f);
+            LearningUiTheme.StyleSurface(
+                recentActivityCard.GetComponent<Image>(),
+                LearningUiTheme.Card,
+                LearningUiTheme.RadiusLarge,
+                true,
+                new Vector2(0f, -5f));
+            var recentActivityLayout = recentActivityCard.AddComponent<VerticalLayoutGroup>();
+            recentActivityLayout.padding = new RectOffset(28, 28, 24, 24);
+            recentActivityLayout.spacing = 14f;
+            recentActivityLayout.childControlWidth = true;
+            recentActivityLayout.childControlHeight = true;
+            recentActivityLayout.childForceExpandWidth = true;
+            recentActivityLayout.childForceExpandHeight = false;
+
+            var recentHeader = CreateHorizontalGroup(
+                recentActivityCard.transform,
+                "Recent Activity Header",
+                54f,
+                12f);
+            var recentIconBubble = CreatePanel(
+                recentHeader.transform,
+                "Recent Activity Icon",
+                LearningUiTheme.AccentSoft,
+                LearningUiTheme.RadiusPill);
+            SetPreferredSize(recentIconBubble, 48f, 48f);
+            CreateIcon(recentIconBubble.transform, LearningUiIconType.Clock, LearningUiTheme.Warning, 28f);
+            var recentTitle = CreateText(
+                recentHeader.transform,
+                "Recent Activity Title",
+                "Recent learning activity",
+                25f,
+                font,
+                LearningUiTheme.Ink);
+            recentTitle.fontStyle = FontStyles.Bold;
+            SetFlexibleWidth(recentTitle.gameObject, 1f);
+            SetPreferredHeight(recentTitle.gameObject, 48f);
+            var periodPill = CreatePanel(
+                recentHeader.transform,
+                "Recent Activity Period",
+                LearningUiTheme.PrimarySoft,
+                LearningUiTheme.RadiusPill);
+            SetPreferredSize(periodPill, 112f, 42f);
+            var periodText = CreateText(
+                periodPill.transform,
+                "Recent Activity Period Label",
+                "TODAY",
+                17f,
+                font,
+                LearningUiTheme.PrimaryDark,
+                TextAlignmentOptions.Center);
+            periodText.fontStyle = FontStyles.Bold;
+            Stretch(periodText.rectTransform, 6f);
+
+            var todayMetrics = CreateHorizontalGroup(
+                recentActivityCard.transform,
+                "Today Activity Metrics",
+                92f,
+                12f,
+                true);
+            CreateMetricChip(
+                todayMetrics.transform,
+                "Today",
+                "Scans",
+                LearningUiIconType.Camera,
+                LearningUiTheme.PrimaryDark,
+                LearningUiTheme.PrimarySoft,
+                out m_TodayScansValueText,
+                font);
+            CreateMetricChip(
+                todayMetrics.transform,
+                "Today",
+                "Quizzes",
+                LearningUiIconType.Quiz,
+                LearningUiTheme.SecondaryDark,
+                LearningUiTheme.SecondarySoft,
+                out m_TodayQuizzesValueText,
+                font);
+
+            var vocabularySnapshot = CreateHorizontalGroup(
+                recentActivityCard.transform,
+                "Overall Vocabulary Snapshot",
+                68f,
+                10f);
+            var vocabularyLabel = CreateText(
+                vocabularySnapshot.transform,
+                "Overall Vocabulary Label",
+                "Overall vocabulary",
+                17f,
                 font,
                 LearningUiTheme.Muted);
-            m_WeeklySummaryText.textWrappingMode = TextWrappingModes.Normal;
-            SetPreferredHeight(m_WeeklySummaryText.gameObject, 92f);
+            vocabularyLabel.fontStyle = FontStyles.Bold;
+            SetFlexibleWidth(vocabularyLabel.gameObject, 1f);
+            SetPreferredHeight(vocabularyLabel.gameObject, 54f);
+            CreateInlineMetricCounter(
+                vocabularySnapshot.transform,
+                "Explored",
+                LearningUiTheme.PrimarySoft,
+                LearningUiTheme.PrimaryDark,
+                out m_ExploredWordsValueText,
+                font);
+            CreateInlineMetricCounter(
+                vocabularySnapshot.transform,
+                "Mastered",
+                LearningUiTheme.LavenderSoft,
+                LearningUiTheme.Lavender,
+                out m_MasteredWordsValueText,
+                font);
 
-            var achievementCard = CreatePanel(content.transform, "Recent Learning Activity Card", LearningUiTheme.AccentSoft, LearningUiTheme.RadiusLarge, 236f);
-            var achievementLayout = achievementCard.AddComponent<HorizontalLayoutGroup>();
-            achievementLayout.padding = new RectOffset(28, 28, 24, 24);
-            achievementLayout.spacing = 22f;
-            achievementLayout.childControlWidth = true;
-            achievementLayout.childControlHeight = true;
-            achievementLayout.childForceExpandWidth = false;
-            achievementLayout.childForceExpandHeight = false;
-            var achievementIcon = CreatePanel(achievementCard.transform, "Achievement Icon", LearningUiTheme.Accent, LearningUiTheme.RadiusPill);
-            SetPreferredSize(achievementIcon, 108f, 108f);
-            CreateIcon(achievementIcon.transform, LearningUiIconType.Trophy, Color.white, 58f);
-            var achievementCopy = CreateVerticalGroup(achievementCard.transform, "Achievement Copy", 4f);
-            SetFlexibleWidth(achievementCopy, 1f);
-            SetPreferredHeight(achievementCopy, 172f);
-            var achievementTitle = CreateText(achievementCopy.transform, "Achievement Title", "Recent learning activity", 21f, font, LearningUiTheme.Warning);
-            achievementTitle.fontStyle = FontStyles.Bold;
-            SetPreferredHeight(achievementTitle.gameObject, 36f);
-            m_ProgressSummaryText = CreateText(achievementCopy.transform, "Progress Summary", "No scans or completed quizzes yet today", 24f, font, LearningUiTheme.Ink);
-            m_ProgressSummaryText.fontStyle = FontStyles.Bold;
-            m_ProgressSummaryText.textWrappingMode = TextWrappingModes.Normal;
-            SetPreferredHeight(m_ProgressSummaryText.gameObject, 128f);
-
-            var practiceCard = CreatePanel(content.transform, "Practice Card", LearningUiTheme.Card, LearningUiTheme.RadiusLarge, 322f);
-            LearningUiTheme.StyleSurface(practiceCard.GetComponent<Image>(), LearningUiTheme.Card, LearningUiTheme.RadiusLarge, true, new Vector2(0f, -5f));
-            var practiceLayout = practiceCard.AddComponent<VerticalLayoutGroup>();
+            m_RevisionCard = CreatePanel(content.transform, "Practice Card", LearningUiTheme.Card, LearningUiTheme.RadiusLarge, 264f);
+            LearningUiTheme.StyleSurface(m_RevisionCard.GetComponent<Image>(), LearningUiTheme.Card, LearningUiTheme.RadiusLarge, true, new Vector2(0f, -5f));
+            var practiceLayout = m_RevisionCard.AddComponent<VerticalLayoutGroup>();
             practiceLayout.padding = new RectOffset(28, 28, 24, 24);
             practiceLayout.spacing = 10f;
             practiceLayout.childControlWidth = true;
             practiceLayout.childControlHeight = true;
             practiceLayout.childForceExpandWidth = true;
             practiceLayout.childForceExpandHeight = false;
-            var practiceTitle = CreateText(practiceCard.transform, "Practice Title", "Adaptive revision queue", 27f, font, LearningUiTheme.Ink);
+            var practiceTitle = CreateText(m_RevisionCard.transform, "Practice Title", "Adaptive revision queue", 27f, font, LearningUiTheme.Ink);
             practiceTitle.fontStyle = FontStyles.Bold;
             SetPreferredHeight(practiceTitle.gameObject, 42f);
-            m_RevisionText = CreateText(practiceCard.transform, "Revision Recommendations", "Complete a quiz to identify words that need more practice.", 22f, font, LearningUiTheme.Muted);
-            m_RevisionText.textWrappingMode = TextWrappingModes.Normal;
-            m_RevisionText.overflowMode = TextOverflowModes.Ellipsis;
-            SetPreferredHeight(m_RevisionText.gameObject, 220f);
+            var practiceSubtitle = CreateText(
+                m_RevisionCard.transform,
+                "Revision Queue Subtitle",
+                "Highest-priority words appear first.",
+                18f,
+                font,
+                LearningUiTheme.Muted);
+            SetPreferredHeight(practiceSubtitle.gameObject, 30f);
+
+            m_RevisionQueueContainer = CreateVerticalGroup(
+                m_RevisionCard.transform,
+                "Revision Queue Items",
+                10f,
+                414f);
+            m_RevisionItems = new GameObject[4];
+            m_RevisionWordTexts = new TMP_Text[4];
+            m_RevisionReasonTexts = new TMP_Text[4];
+            m_RevisionEvidenceTexts = new TMP_Text[4];
+            m_RevisionEvidenceBadges = new Image[4];
+            for (var index = 0; index < m_RevisionItems.Length; index++)
+            {
+                CreateRevisionQueueItem(
+                    m_RevisionQueueContainer.transform,
+                    index,
+                    font,
+                    out m_RevisionItems[index],
+                    out m_RevisionWordTexts[index],
+                    out m_RevisionReasonTexts[index],
+                    out m_RevisionEvidenceTexts[index],
+                    out m_RevisionEvidenceBadges[index]);
+            }
+
+            m_RevisionEmptyState = CreateRevisionEmptyState(m_RevisionCard.transform, font);
+            m_RevisionQueueContainer.SetActive(false);
 
             SetVisible(m_ProgressCanvasGroup, false);
         }
@@ -1774,6 +1999,302 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             SetPreferredHeight(valueText.gameObject, 48f);
             var caption = CreateText(card.transform, $"{label} Label", label, 18f, font, LearningUiTheme.Muted, TextAlignmentOptions.Center);
             SetPreferredHeight(caption.gameObject, 32f);
+        }
+
+        static void CreateMetricChip(
+            Transform parent,
+            string scope,
+            string label,
+            LearningUiIconType iconType,
+            Color iconColor,
+            Color surfaceColor,
+            out TMP_Text valueText,
+            TMP_FontAsset font)
+        {
+            var chip = CreatePanel(
+                parent,
+                $"{scope} {label} Metric",
+                surfaceColor,
+                LearningUiTheme.RadiusMedium);
+            var layout = chip.AddComponent<HorizontalLayoutGroup>();
+            layout.padding = new RectOffset(14, 14, 12, 12);
+            layout.spacing = 10f;
+            layout.childAlignment = TextAnchor.MiddleLeft;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = false;
+
+            var icon = CreateIcon(chip.transform, iconType, iconColor, 32f);
+            SetPreferredSize(icon.gameObject, 34f, 34f);
+            var copy = CreateVerticalGroup(chip.transform, $"{scope} {label} Copy", 0f, 66f);
+            SetFlexibleWidth(copy, 1f);
+            valueText = CreateText(
+                copy.transform,
+                $"{scope} {label} Value",
+                "0",
+                27f,
+                font,
+                LearningUiTheme.Ink);
+            valueText.fontStyle = FontStyles.Bold;
+            SetPreferredHeight(valueText.gameObject, 36f);
+            var caption = CreateText(
+                copy.transform,
+                $"{scope} {label} Label",
+                label,
+                15f,
+                font,
+                LearningUiTheme.Muted);
+            SetPreferredHeight(caption.gameObject, 26f);
+        }
+
+        static void CreateInlineMetricCounter(
+            Transform parent,
+            string label,
+            Color surfaceColor,
+            Color valueColor,
+            out TMP_Text valueText,
+            TMP_FontAsset font)
+        {
+            var counter = CreatePanel(
+                parent,
+                $"Overall {label} Metric",
+                surfaceColor,
+                LearningUiTheme.RadiusPill);
+            SetPreferredSize(counter, 194f, 54f);
+            var layout = counter.AddComponent<HorizontalLayoutGroup>();
+            layout.padding = new RectOffset(14, 14, 8, 8);
+            layout.spacing = 7f;
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = false;
+
+            valueText = CreateText(
+                counter.transform,
+                $"Overall {label} Value",
+                "0",
+                20f,
+                font,
+                valueColor,
+                TextAlignmentOptions.Center);
+            valueText.fontStyle = FontStyles.Bold;
+            SetPreferredWidth(valueText.gameObject, 72f);
+            SetPreferredHeight(valueText.gameObject, 36f);
+            var caption = CreateText(
+                counter.transform,
+                $"Overall {label} Label",
+                label.ToLowerInvariant(),
+                15f,
+                font,
+                LearningUiTheme.Muted,
+                TextAlignmentOptions.Center);
+            SetFlexibleWidth(caption.gameObject, 1f);
+            SetPreferredHeight(caption.gameObject, 34f);
+        }
+
+        void CreateWeeklyQuizQualityCard(Transform parent, TMP_FontAsset font)
+        {
+            var card = CreatePanel(
+                parent,
+                "Weekly Quiz Quality Card",
+                LearningUiTheme.Background,
+                LearningUiTheme.RadiusMedium,
+                82f);
+            var layout = card.AddComponent<HorizontalLayoutGroup>();
+            layout.padding = new RectOffset(16, 16, 12, 12);
+            layout.spacing = 14f;
+            layout.childAlignment = TextAnchor.MiddleLeft;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = false;
+
+            var iconBubble = CreatePanel(
+                card.transform,
+                "Weekly Quiz Quality Icon",
+                LearningUiTheme.SecondarySoft,
+                LearningUiTheme.RadiusPill);
+            SetPreferredSize(iconBubble, 54f, 54f);
+            CreateIcon(iconBubble.transform, LearningUiIconType.Quiz, LearningUiTheme.SecondaryDark, 30f);
+
+            var copy = CreateVerticalGroup(card.transform, "Weekly Quiz Quality Copy", 1f, 58f);
+            SetFlexibleWidth(copy, 1f);
+            var title = CreateText(
+                copy.transform,
+                "Weekly Quiz Quality Title",
+                "Quiz answer quality",
+                18f,
+                font,
+                LearningUiTheme.Ink);
+            title.fontStyle = FontStyles.Bold;
+            SetPreferredHeight(title.gameObject, 28f);
+            m_WeeklyQuizAnswerDetailText = CreateText(
+                copy.transform,
+                "Weekly Quiz Answer Detail",
+                "Complete a quiz to unlock answer quality",
+                17f,
+                font,
+                LearningUiTheme.Muted);
+            SetPreferredHeight(m_WeeklyQuizAnswerDetailText.gameObject, 28f);
+
+            var accuracyBadge = CreatePanel(
+                card.transform,
+                "Weekly Quiz Accuracy Badge",
+                LearningUiTheme.AccentSoft,
+                LearningUiTheme.RadiusPill);
+            SetPreferredSize(accuracyBadge, 132f, 50f);
+            m_WeeklyQuizAccuracyBadge = accuracyBadge.GetComponent<Image>();
+            m_WeeklyQuizAccuracyText = CreateText(
+                accuracyBadge.transform,
+                "Weekly Quiz Accuracy Value",
+                "—",
+                22f,
+                font,
+                LearningUiTheme.Warning,
+                TextAlignmentOptions.Center);
+            m_WeeklyQuizAccuracyText.fontStyle = FontStyles.Bold;
+            Stretch(m_WeeklyQuizAccuracyText.rectTransform, 6f);
+        }
+
+        static void CreateRevisionQueueItem(
+            Transform parent,
+            int index,
+            TMP_FontAsset font,
+            out GameObject item,
+            out TMP_Text wordText,
+            out TMP_Text reasonText,
+            out TMP_Text evidenceText,
+            out Image evidenceBadge)
+        {
+            item = CreatePanel(
+                parent,
+                $"Revision Item {index + 1}",
+                LearningUiTheme.Background,
+                LearningUiTheme.RadiusMedium,
+                96f);
+            var layout = item.AddComponent<HorizontalLayoutGroup>();
+            layout.padding = new RectOffset(16, 16, 12, 12);
+            layout.spacing = 14f;
+            layout.childAlignment = TextAnchor.MiddleLeft;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = false;
+
+            var rankBadge = CreatePanel(
+                item.transform,
+                $"Revision Rank {index + 1}",
+                LearningUiTheme.PrimarySoft,
+                LearningUiTheme.RadiusPill);
+            SetPreferredSize(rankBadge, 52f, 52f);
+            var rankText = CreateText(
+                rankBadge.transform,
+                "Rank",
+                (index + 1).ToString(),
+                22f,
+                font,
+                LearningUiTheme.PrimaryDark,
+                TextAlignmentOptions.Center);
+            rankText.fontStyle = FontStyles.Bold;
+            Stretch(rankText.rectTransform, 4f);
+
+            var copy = CreateVerticalGroup(item.transform, $"Revision Copy {index + 1}", 1f, 70f);
+            SetFlexibleWidth(copy, 1f);
+            wordText = CreateText(
+                copy.transform,
+                "Word",
+                "Word",
+                25f,
+                font,
+                LearningUiTheme.Ink);
+            wordText.fontStyle = FontStyles.Bold;
+            SetPreferredHeight(wordText.gameObject, 36f);
+            reasonText = CreateText(
+                copy.transform,
+                "Reason",
+                "Practice recommended",
+                17f,
+                font,
+                LearningUiTheme.Muted);
+            reasonText.textWrappingMode = TextWrappingModes.Normal;
+            SetPreferredHeight(reasonText.gameObject, 32f);
+
+            var evidence = CreatePanel(
+                item.transform,
+                $"Revision Evidence {index + 1}",
+                LearningUiTheme.AccentSoft,
+                LearningUiTheme.RadiusPill);
+            SetPreferredSize(evidence, 178f, 48f);
+            evidenceBadge = evidence.GetComponent<Image>();
+            evidenceText = CreateText(
+                evidence.transform,
+                "Evidence",
+                "NOT TESTED",
+                15f,
+                font,
+                LearningUiTheme.Warning,
+                TextAlignmentOptions.Center);
+            evidenceText.fontStyle = FontStyles.Bold;
+            Stretch(evidenceText.rectTransform, 8f);
+        }
+
+        static GameObject CreateRevisionEmptyState(Transform parent, TMP_FontAsset font)
+        {
+            var emptyState = CreatePanel(
+                parent,
+                "Revision Queue Empty State",
+                LearningUiTheme.PrimarySoft,
+                LearningUiTheme.RadiusMedium,
+                124f);
+            var layout = emptyState.AddComponent<HorizontalLayoutGroup>();
+            layout.padding = new RectOffset(20, 20, 18, 18);
+            layout.spacing = 16f;
+            layout.childAlignment = TextAnchor.MiddleLeft;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = false;
+
+            var iconBubble = CreatePanel(
+                emptyState.transform,
+                "Revision Queue Clear Icon",
+                LearningUiTheme.Primary,
+                LearningUiTheme.RadiusPill);
+            SetPreferredSize(iconBubble, 64f, 64f);
+            CreateIcon(iconBubble.transform, LearningUiIconType.Refresh, Color.white, 34f);
+
+            var copy = CreateVerticalGroup(emptyState.transform, "Revision Queue Empty Copy", 2f, 82f);
+            SetFlexibleWidth(copy, 1f);
+            var title = CreateText(
+                copy.transform,
+                "Revision Queue Empty Title",
+                "Queue is clear",
+                23f,
+                font,
+                LearningUiTheme.PrimaryDark);
+            title.fontStyle = FontStyles.Bold;
+            SetPreferredHeight(title.gameObject, 34f);
+            var body = CreateText(
+                copy.transform,
+                "Revision Queue Empty Body",
+                "Scan more objects or complete a quiz to build your next review set.",
+                17f,
+                font,
+                LearningUiTheme.Muted);
+            body.textWrappingMode = TextWrappingModes.Normal;
+            SetPreferredHeight(body.gameObject, 46f);
+            return emptyState;
+        }
+
+        static string FormatWordLabel(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return "Word";
+
+            var trimmed = value.Trim();
+            return char.ToUpperInvariant(trimmed[0]) + trimmed.Substring(1);
         }
 
         static void CreateActivityBar(

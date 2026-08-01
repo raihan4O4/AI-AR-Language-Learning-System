@@ -19,6 +19,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         Trophy,
         Star,
         Flame,
+        Clock,
         Refresh,
         Close
     }
@@ -101,6 +102,9 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                     break;
                 case LearningUiIconType.Flame:
                     DrawFlame(vertexHelper, center, size);
+                    break;
+                case LearningUiIconType.Clock:
+                    DrawClock(vertexHelper, center, size, stroke);
                     break;
                 case LearningUiIconType.Refresh:
                     DrawRefresh(vertexHelper, center, size, stroke);
@@ -240,6 +244,22 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 center + new Vector2(-0.2f, 0.16f) * size,
                 center + new Vector2(-0.04f, 0.02f) * size
             });
+        }
+
+        void DrawClock(VertexHelper vertexHelper, Vector2 center, float size, float stroke)
+        {
+            AddRing(vertexHelper, center, size * 0.34f, size * 0.28f, 30);
+            AddLine(
+                vertexHelper,
+                center,
+                center + new Vector2(0f, 0.18f) * size,
+                stroke * 0.75f);
+            AddLine(
+                vertexHelper,
+                center,
+                center + new Vector2(0.17f, -0.1f) * size,
+                stroke * 0.75f);
+            AddCircle(vertexHelper, center, stroke * 0.55f, 12);
         }
 
         void DrawRefresh(VertexHelper vertexHelper, Vector2 center, float size, float stroke)

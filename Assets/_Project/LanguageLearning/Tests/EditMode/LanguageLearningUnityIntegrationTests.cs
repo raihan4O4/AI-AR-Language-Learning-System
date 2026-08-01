@@ -141,9 +141,22 @@ namespace AIAR.LanguageLearning.Tests
                 Assert.IsNotNull(GameObject.Find("Quiz accuracy Value"));
                 Assert.IsNotNull(GameObject.Find("Retention score Value"));
                 Assert.IsNotNull(GameObject.Find("Needs revision Value"));
-                Assert.IsNotNull(GameObject.Find("Weekly Summary"));
+                Assert.IsNotNull(GameObject.Find("Weekly Metric Row"));
+                Assert.IsNotNull(GameObject.Find("Weekly Quiz Quality Card"));
+                Assert.IsNotNull(GameObject.Find("Weekly Chart Caption"));
                 Assert.IsNotNull(GameObject.Find("Recent Learning Activity Card"));
-                Assert.IsNotNull(GameObject.Find("Revision Recommendations"));
+                Assert.IsNotNull(GameObject.Find("Today Activity Metrics"));
+                Assert.IsNotNull(GameObject.Find("Overall Vocabulary Snapshot"));
+                Assert.IsNull(GameObject.Find("Progress Summary"));
+                var practiceCard = GameObject.Find("Practice Card");
+                Assert.IsNotNull(practiceCard);
+                var revisionQueue = practiceCard.transform.Find("Revision Queue Items");
+                var revisionEmptyState = practiceCard.transform.Find("Revision Queue Empty State");
+                Assert.IsNotNull(revisionQueue);
+                Assert.IsNotNull(revisionEmptyState);
+                Assert.IsNotNull(revisionQueue.Find("Revision Item 1/Revision Copy 1/Word"));
+                Assert.IsNotNull(revisionQueue.Find("Revision Item 1/Revision Copy 1/Reason"));
+                Assert.IsNotNull(revisionQueue.Find("Revision Item 1/Revision Evidence 1/Evidence"));
 
                 var firstFill = GameObject.Find("Activity Fill 1").GetComponent<Image>();
                 var emptyFill = GameObject.Find("Activity Fill 2").GetComponent<Image>();
@@ -159,9 +172,23 @@ namespace AIAR.LanguageLearning.Tests
                 Assert.AreEqual(
                     today.AddDays(-6).ToString("ddd"),
                     GameObject.Find("Activity Day Label 1").GetComponent<TMPro.TMP_Text>().text);
+                Assert.AreEqual("5", GameObject.Find("Weekly Scans Value").GetComponent<TMPro.TMP_Text>().text);
+                Assert.AreEqual("1", GameObject.Find("Weekly Quizzes Value").GetComponent<TMPro.TMP_Text>().text);
+                Assert.AreEqual("0", GameObject.Find("Weekly Focused min Value").GetComponent<TMPro.TMP_Text>().text);
+                Assert.AreEqual("50%", GameObject.Find("Weekly Quiz Accuracy Value").GetComponent<TMPro.TMP_Text>().text);
+                Assert.AreEqual("TODAY", GameObject.Find("Recent Activity Period Label").GetComponent<TMPro.TMP_Text>().text);
+                Assert.AreEqual("4", GameObject.Find("Today Scans Value").GetComponent<TMPro.TMP_Text>().text);
+                Assert.AreEqual("0", GameObject.Find("Today Quizzes Value").GetComponent<TMPro.TMP_Text>().text);
                 StringAssert.Contains(
-                    "5 scans  |  1 quiz",
-                    GameObject.Find("Weekly Summary").GetComponent<TMPro.TMP_Text>().text);
+                    "/",
+                    GameObject.Find("Overall Explored Value").GetComponent<TMPro.TMP_Text>().text);
+                Assert.IsNotNull(GameObject.Find("Overall Mastered Value"));
+                StringAssert.Contains(
+                    "1 correct • 1 to review",
+                    GameObject.Find("Weekly Quiz Answer Detail").GetComponent<TMPro.TMP_Text>().text);
+                StringAssert.Contains(
+                    "object scans and completed quizzes",
+                    GameObject.Find("Weekly Chart Caption").GetComponent<TMPro.TMP_Text>().text);
             }
             finally
             {
