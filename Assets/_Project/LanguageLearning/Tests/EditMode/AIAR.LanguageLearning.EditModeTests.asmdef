@@ -1,0 +1,25 @@
+{
+    "name": "AIAR.LanguageLearning.EditModeTests",
+    "rootNamespace": "AIAR.LanguageLearning.Tests",
+    "references": [
+        "AIAR.LanguageLearning.Domain",
+        "AIAR.LanguageLearning.Application",
+        "AIAR.LanguageLearning.Unity",
+        "Unity.InferenceEngine",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "noEngineReferences": false
+}

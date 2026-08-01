@@ -1,0 +1,22 @@
+{
+    "name": "AIAR.LanguageLearning.Unity",
+    "rootNamespace": "AIAR.LanguageLearning.Unity",
+    "references": [
+        "AIAR.LanguageLearning.Domain",
+        "AIAR.LanguageLearning.Application",
+        "LightSide.UniText",
+        "Unity.TextMeshPro",
+        "Unity.InferenceEngine",
+        "Unity.XR.ARFoundation",
+        "Unity.XR.ARSubsystems"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
