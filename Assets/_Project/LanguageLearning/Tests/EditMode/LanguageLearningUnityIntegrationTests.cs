@@ -1,4 +1,5 @@
 using AIAR.LanguageLearning.Application.Models;
+using AIAR.LanguageLearning.Application.Services;
 using AIAR.LanguageLearning.Unity.Bootstrap;
 using AIAR.LanguageLearning.Unity.Data;
 using AIAR.LanguageLearning.Unity.ObjectDetection;
@@ -9,6 +10,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.UI;
+using System.Linq;
 
 namespace AIAR.LanguageLearning.Tests
 {
@@ -17,6 +19,13 @@ namespace AIAR.LanguageLearning.Tests
         const string MainScenePath = "Assets/Scenes/Main.unity";
         const string ModelPath = "Assets/_Project/LanguageLearning/ObjectDetection/Models/yolo11n_320.onnx";
         const string LabelsPath = "Assets/_Project/LanguageLearning/ObjectDetection/Models/coco80.txt";
+        static readonly string[] LocalizedLabelsPaths =
+        {
+            "Assets/_Project/LanguageLearning/ObjectDetection/Models/coco80.en.txt",
+            "Assets/_Project/LanguageLearning/ObjectDetection/Models/coco80.hi.txt",
+            "Assets/_Project/LanguageLearning/ObjectDetection/Models/coco80.ml.txt",
+            "Assets/_Project/LanguageLearning/ObjectDetection/Models/coco80.fr.txt"
+        };
 
         [Test]
         public void MainScene_HasValidMvpRuntimeWiring()
@@ -369,6 +378,241 @@ namespace AIAR.LanguageLearning.Tests
         }
 
         [Test]
+        public void ScanObjectDisplay_ResetClearsTransientPresentationWithoutChangingLanguage()
+        {
+            EditorSceneManager.OpenScene(MainScenePath, OpenSceneMode.Single);
+
+            var session = Object.FindAnyObjectByType<LearningSessionController>();
+            var repository = Object.FindAnyObjectByType<ResourcesVocabularyRepository>();
+            var presenter = Object.FindAnyObjectByType<ARVocabularyOverlayPresenter>();
+            var mvp = Object.FindAnyObjectByType<LearningMvpController>();
+            Assert.IsNotNull(session);
+            Assert.IsNotNull(repository);
+            Assert.IsNotNull(presenter);
+            Assert.IsNotNull(mvp);
+
+            typeof(ARVocabularyOverlayPresenter)
+                .GetMethod("SubscribeToSession", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                ?.Invoke(presenter, null);
+            presenter.SetScanDisplayEnabled(true);
+
+            Assert.IsTrue(repository.TryGetById("book", out var entry));
+            var publishVocabulary = typeof(LearningSessionController).GetMethod(
+                "PublishVocabulary",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.IsNotNull(publishVocabulary);
+            publishVocabulary.Invoke(
+                session,
+                new object[]
+                {
+                    entry,
+                    "book",
+                    0.9f,
+                    NormalizedBoundingBox.Centered(0.5f, 0.5f),
+                    false
+                });
+
+            Assert.IsNotNull(session.CurrentVocabularyEntry);
+            var selectedLanguage = session.LearningLanguage;
+
+            mvp.ShowScan();
+
+            Assert.IsNull(session.CurrentVocabularyEntry);
+            Assert.AreEqual(selectedLanguage, session.LearningLanguage);
+            var presenterObject = new SerializedObject(presenter);
+            foreach (var propertyName in new[]
+                     {
+                         "m_TranslatedWordText",
+                         "m_SourceWordText",
+                         "m_PhoneticHintText",
+                         "m_LanguageText"
+                     })
+            {
+                var text = (TMPro.TMP_Text)presenterObject.FindProperty(propertyName).objectReferenceValue;
+                Assert.IsNotNull(text);
+                Assert.IsEmpty(text.text, $"{propertyName} retained the previous object display.");
+            }
+
+            var canvasGroup = (CanvasGroup)presenterObject.FindProperty("m_CanvasGroup").objectReferenceValue;
+            Assert.IsNotNull(canvasGroup);
+            Assert.AreEqual(0f, canvasGroup.alpha);
+        }
+
+        [Test]
+        public void NativeIndicText_UsesHarfBuzzGraphicOnlyForIndicScripts()
+        {
+            Assert.IsTrue(NativeIndicText.RequiresShaping("\u0915\u093F\u0924\u093E\u092C"));
+            Assert.IsTrue(NativeIndicText.RequiresShaping("\u0D2A\u0D41\u0D38\u0D4D\u0D24\u0D15\u0D02"));
+            Assert.IsTrue(NativeIndicText.RequiresShaping("Answer: \u0915\u0941\u0930\u094D\u0938\u0940"));
+            Assert.IsFalse(NativeIndicText.RequiresShaping("book"));
+            Assert.IsFalse(NativeIndicText.RequiresShaping("t\u00E9l\u00E9phone"));
+            Assert.IsFalse(NativeIndicText.RequiresShaping(string.Empty));
+            Assert.IsTrue(typeof(MaskableGraphic).IsAssignableFrom(NativeIndicText.NativeGraphicType));
+        }
+
+        [Test]
+        public void NativeIndicText_HasGeneratedDevanagariAndMalayalamResources()
+        {
+            const string fontRoot = "Assets/_Project/LanguageLearning/Content/Resources/Fonts/UniText/";
+            foreach (var assetName in new[]
+                     {
+                         "NotoSans-Regular.asset",
+                         "NotoSansDevanagari-Regular.asset",
+                         "NotoSansMalayalam-Regular.asset",
+                         "IndicFontStack.asset",
+                         "IndicAppearance.asset"
+                     })
+            {
+                Assert.IsNotNull(
+                    AssetDatabase.LoadMainAssetAtPath(fontRoot + assetName),
+                    $"Missing generated native text asset: {assetName}");
+            }
+
+            Assert.IsNotNull(Resources.Load("Fonts/UniText/IndicFontStack"));
+            Assert.IsNotNull(Resources.Load("Fonts/UniText/IndicAppearance"));
+            Assert.IsTrue(
+                NativeIndicText.UsesFaceOnlyAppearance(),
+                "Indic text should use one face-only rendering pass without outline or underlay.");
+        }
+
+        [Test]
+        public void NativeIndicText_RemainsInSourceHierarchyAndRestoresTmpForLatin()
+        {
+            var root = new GameObject("Native text test root", typeof(RectTransform));
+            var sourceObject = new GameObject(
+                "Answer label",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(TMPro.TextMeshProUGUI));
+            sourceObject.transform.SetParent(root.transform, false);
+
+            try
+            {
+                var source = sourceObject.GetComponent<TMPro.TextMeshProUGUI>();
+                source.text = "\u0D2A\u0D41\u0D38\u0D4D\u0D24\u0D15\u0D02";
+                source.fontSize = 32f;
+                source.alignment = TMPro.TextAlignmentOptions.Center;
+
+                var adapter = sourceObject.AddComponent<NativeIndicTextAdapter>();
+                Assert.DoesNotThrow(
+                    () => adapter.Configure(source),
+                    "The first Indic option must configure completely in a single pass.");
+
+                var nativeChild = sourceObject.transform.Find("Native Indic Text");
+                Assert.IsNotNull(nativeChild, "The shaped graphic was not created as a UGUI child.");
+                Assert.AreSame(sourceObject.transform, nativeChild.parent);
+                var nativeGraphic = (Graphic)nativeChild.GetComponent(NativeIndicText.NativeGraphicType);
+                Assert.IsNotNull(nativeGraphic);
+                Assert.IsFalse(nativeGraphic.raycastTarget, "The native label must not intercept button clicks.");
+                Assert.IsFalse(nativeChild.GetComponent<CanvasGroup>().blocksRaycasts);
+                Assert.IsNull(sourceObject.GetComponent<RectMask2D>());
+                Assert.IsFalse(source.enabled, "TMP should be suppressed while the native graphic is active.");
+
+                var nativeRect = (RectTransform)nativeChild;
+                Assert.AreEqual(Vector2.zero, nativeRect.anchorMin);
+                Assert.AreEqual(Vector2.one, nativeRect.anchorMax);
+                Assert.AreEqual(Vector2.zero, nativeRect.offsetMin);
+                Assert.AreEqual(Vector2.zero, nativeRect.offsetMax);
+
+                source.enabled = true;
+                adapter.Configure(source);
+                Assert.IsFalse(source.enabled, "External TMP updates must not reveal old glyphs behind Indic text.");
+
+                source.text = "book";
+                adapter.Configure(source);
+
+                Assert.IsTrue(source.enabled, "TMP should be restored when the label returns to Latin text.");
+                Assert.IsFalse(nativeChild.gameObject.activeSelf);
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
+        public void NativeIndicText_FirstIndicUpdateReplacesPlaceholderAndPreviousLatinText()
+        {
+            var root = new GameObject("Native text replacement root", typeof(RectTransform));
+            var sourceObject = new GameObject(
+                "Quiz option label",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(TMPro.TextMeshProUGUI));
+            sourceObject.transform.SetParent(root.transform, false);
+
+            try
+            {
+                var source = sourceObject.GetComponent<TMPro.TextMeshProUGUI>();
+                var adapter = sourceObject.AddComponent<NativeIndicTextAdapter>();
+                source.text = "Quiz Option 1";
+                adapter.Configure(source);
+
+                const string malayalamOption = "\u0D2A\u0D41\u0D38\u0D4D\u0D24\u0D15\u0D02";
+                source.text = malayalamOption;
+                adapter.Configure(source);
+
+                var nativeChild = sourceObject.transform.Find("Native Indic Text");
+                Assert.IsNotNull(nativeChild);
+                var nativeGraphic = nativeChild.GetComponent(NativeIndicText.NativeGraphicType);
+                Assert.IsNotNull(nativeGraphic);
+                var textProperty = nativeGraphic.GetType().GetProperty("Text");
+                Assert.IsNotNull(textProperty);
+                Assert.AreEqual(malayalamOption, textProperty?.GetValue(nativeGraphic) as string);
+                Assert.IsFalse(source.enabled);
+
+                source.text = "chaise";
+                adapter.Configure(source);
+                Assert.IsTrue(source.enabled);
+
+                const string hindiOption = "\u0915\u0941\u0930\u094D\u0938\u0940";
+                source.text = hindiOption;
+                adapter.Configure(source);
+                Assert.AreEqual(hindiOption, textProperty?.GetValue(nativeGraphic) as string);
+                Assert.IsFalse(source.enabled);
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
+        public void NativeIndicText_InactiveQuizLabelDefersShapingUntilActivated()
+        {
+            var root = new GameObject("Inactive quiz option root", typeof(RectTransform));
+            var sourceObject = new GameObject(
+                "Inactive quiz option label",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(TMPro.TextMeshProUGUI));
+            sourceObject.transform.SetParent(root.transform, false);
+            sourceObject.SetActive(false);
+
+            try
+            {
+                var source = sourceObject.GetComponent<TMPro.TextMeshProUGUI>();
+                source.text = "\u0915\u093F\u0924\u093E\u092C";
+                var adapter = sourceObject.AddComponent<NativeIndicTextAdapter>();
+
+                Assert.DoesNotThrow(() => adapter.Configure(source));
+                Assert.IsNull(
+                    sourceObject.transform.Find("Native Indic Text"),
+                    "Inactive labels should not initialize UniText before its OnEnable lifecycle.");
+
+                sourceObject.SetActive(true);
+                adapter.Configure(source);
+
+                Assert.IsNotNull(sourceObject.transform.Find("Native Indic Text"));
+                Assert.IsFalse(source.enabled);
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
         public void MainScene_DetectionBoxesUseOutlineOnlyGraphics()
         {
             EditorSceneManager.OpenScene(MainScenePath, OpenSceneMode.Single);
@@ -480,20 +724,80 @@ namespace AIAR.LanguageLearning.Tests
         }
 
         [Test]
-        public void VocabularyCatalog_LoadsCompleteMultilingualMvpContent()
+        public void VocabularyCatalog_CoversEveryCocoClassForDetectionAndQuiz()
         {
+            EditorSceneManager.OpenScene(MainScenePath, OpenSceneMode.Single);
             var repository = Object.FindAnyObjectByType<ResourcesVocabularyRepository>();
             Assert.IsNotNull(repository);
 
             var entries = repository.GetAll();
+            var labelAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(LabelsPath);
+            var cocoLabels = Yolo11Contract.ParseAndValidateLabels(labelAsset);
+            var normalizer = new ObjectLabelNormalizer();
+            var quizService = new QuizService();
 
-            Assert.GreaterOrEqual(entries.Count, 30);
-            foreach (var entry in entries)
+            Assert.AreEqual(80, cocoLabels.Length);
+            Assert.GreaterOrEqual(entries.Count, cocoLabels.Length);
+            foreach (var cocoLabel in cocoLabels)
             {
-                Assert.IsTrue(entry.TryGetTranslation(Domain.LanguageCode.English, out _), $"{entry.Id} is missing English.");
-                Assert.IsTrue(entry.TryGetTranslation(Domain.LanguageCode.Hindi, out _), $"{entry.Id} is missing Hindi.");
-                Assert.IsTrue(entry.TryGetTranslation(Domain.LanguageCode.Malayalam, out _), $"{entry.Id} is missing Malayalam.");
-                Assert.IsTrue(entry.TryGetTranslation(Domain.LanguageCode.French, out _), $"{entry.Id} is missing French.");
+                var exactEntries = entries
+                    .Where(entry => string.Equals(
+                        entry.CanonicalObjectLabel,
+                        cocoLabel,
+                        System.StringComparison.OrdinalIgnoreCase))
+                    .ToArray();
+                Assert.AreEqual(1, exactEntries.Length, $"COCO class '{cocoLabel}' needs one canonical vocabulary entry.");
+
+                var entry = exactEntries[0];
+                Assert.IsTrue(normalizer.TryFindBestMatch(cocoLabel, entries, out var match));
+                Assert.AreSame(entry, match, $"Detection label '{cocoLabel}' resolved to the wrong vocabulary entry.");
+
+                foreach (Domain.LanguageCode language in System.Enum.GetValues(typeof(Domain.LanguageCode)))
+                {
+                    Assert.IsTrue(entry.TryGetTranslation(language, out var translation),
+                        $"{entry.Id} is missing {language}.");
+                    Assert.IsFalse(string.IsNullOrWhiteSpace(translation.Text),
+                        $"{entry.Id} has an empty {language} translation.");
+                    Assert.IsFalse(string.IsNullOrWhiteSpace(translation.PhoneticHint),
+                        $"{entry.Id} has an empty {language} phonetic hint.");
+                    Assert.IsFalse(string.IsNullOrWhiteSpace(translation.PronunciationLocale),
+                        $"{entry.Id} has an empty {language} pronunciation locale.");
+
+                    var question = quizService.CreateTranslationQuestion(
+                        entry,
+                        language,
+                        entries,
+                        optionCount: 4,
+                        seed: 1000 + System.Array.IndexOf(cocoLabels, cocoLabel));
+                    Assert.AreEqual(entry.Id, question.TargetVocabularyId);
+                    Assert.AreEqual(translation.Text, question.Options[question.CorrectOptionIndex].Text);
+                }
+            }
+
+            var languages = (Domain.LanguageCode[])System.Enum.GetValues(typeof(Domain.LanguageCode));
+            Assert.AreEqual(languages.Length, LocalizedLabelsPaths.Length);
+            for (var languageIndex = 0; languageIndex < languages.Length; languageIndex++)
+            {
+                var localizedAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(LocalizedLabelsPaths[languageIndex]);
+                Assert.IsNotNull(localizedAsset, $"Missing COCO localization file for {languages[languageIndex]}.");
+                var localizedLabels = localizedAsset.text
+                    .Split(new[] { '\r', '\n' }, System.StringSplitOptions.RemoveEmptyEntries)
+                    .Select(label => label.Trim())
+                    .ToArray();
+                Assert.AreEqual(cocoLabels.Length, localizedLabels.Length,
+                    $"The {languages[languageIndex]} COCO localization file is not aligned with coco80.txt.");
+
+                for (var classIndex = 0; classIndex < cocoLabels.Length; classIndex++)
+                {
+                    var entry = entries.Single(item => string.Equals(
+                        item.CanonicalObjectLabel,
+                        cocoLabels[classIndex],
+                        System.StringComparison.OrdinalIgnoreCase));
+                    Assert.AreEqual(
+                        entry.GetRequiredTranslation(languages[languageIndex]).Text,
+                        localizedLabels[classIndex],
+                        $"Localized COCO class {classIndex} is out of sync for {languages[languageIndex]}.");
+                }
             }
         }
 

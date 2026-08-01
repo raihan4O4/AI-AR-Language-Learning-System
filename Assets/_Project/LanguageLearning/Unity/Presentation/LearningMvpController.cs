@@ -188,18 +188,23 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 return;
 
             TransitionToScreen(ExperienceScreen.Scan);
+            m_SessionController.ResetObjectDisplayState();
             SetAppBackgroundVisible(false);
             SetVisible(m_HomeCanvasGroup, false);
             SetVisible(m_QuizCanvasGroup, false);
             SetVisible(m_ProgressCanvasGroup, false);
             SetVisible(m_ScanCanvasGroup, true);
             m_VocabularyPresenter?.SetScanDisplayEnabled(true);
-            SetVisible(m_VocabularyCanvasGroup, m_SessionController?.CurrentVocabularyEntry != null);
+            m_VocabularyPresenter?.ResetObjectDisplay();
+            SetVisible(m_VocabularyCanvasGroup, false);
             SetVisible(m_StatusCanvasGroup, false);
             SetScanSpeakAvailable(false);
             RefreshLanguageButtonStyles();
             SetStatus("Point your camera at an everyday object");
             AnimateScreenIn(m_ScanCanvasGroup, 28f);
+
+            if (!UnityEngine.Application.isPlaying)
+                return;
 
             if (m_ScanStartupCoroutine != null)
                 StopCoroutine(m_ScanStartupCoroutine);
@@ -426,6 +431,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             m_QuestionAnswered = false;
             m_CurrentQuestion = null;
             m_CurrentQuizEntry = null;
+            ClearQuizOptionDisplay();
             m_QuizFeedbackText.text = string.Empty;
             m_QuizFeedbackText.color = LearningUiTheme.Muted;
             SetRoundedFillAmount(m_QuizProgressFill, 0f);
@@ -495,13 +501,27 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             {
                 var hasOption = index < m_CurrentQuestion.Options.Count;
                 var button = m_QuizOptionButtons[index];
-                button.gameObject.SetActive(hasOption);
                 if (!hasOption)
+                {
+                    NativeIndicText.SetText(m_QuizOptionLabels[index], string.Empty);
+                    button.interactable = false;
+                    button.gameObject.SetActive(false);
                     continue;
+                }
 
-                m_QuizOptionLabels[index].text = m_CurrentQuestion.Options[index].Text;
-                button.interactable = true;
+                button.gameObject.SetActive(true);
+                button.interactable = false;
                 SetQuizButtonState(button, LearningUiTheme.Card, LearningUiTheme.Ink);
+                NativeIndicText.SetText(m_QuizOptionLabels[index], m_CurrentQuestion.Options[index].Text);
+                button.interactable = true;
+            }
+
+            // UniText rebuilds through Canvas render callbacks. Force that pass before this newly
+            // activated question can be drawn, so no cleared/previous option survives one frame.
+            if (UnityEngine.Application.isPlaying &&
+                m_CurrentQuestion.Options.Any(option => NativeIndicText.RequiresShaping(option.Text)))
+            {
+                Canvas.ForceUpdateCanvases();
             }
 
             if (UnityEngine.Application.isPlaying && m_QuizQuestionCard != null)
@@ -517,6 +537,16 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             m_QuizEntries = Array.Empty<VocabularyEntry>();
             SetQuizOptionsVisible(false);
             SetNextQuestionButton(false, "Next Question");
+        }
+
+        void ClearQuizOptionDisplay()
+        {
+            for (var index = 0; index < m_QuizOptionButtons.Length; index++)
+            {
+                NativeIndicText.SetText(m_QuizOptionLabels[index], string.Empty);
+                m_QuizOptionButtons[index].interactable = false;
+                m_QuizOptionButtons[index].gameObject.SetActive(false);
+            }
         }
 
         void RefreshProgress()
@@ -1253,16 +1283,18 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 var capturedIndex = index;
                 m_QuizOptionButtons[index] = CreateButton(
                     content.transform,
-                    $"Quiz Option {index + 1}",
+                    string.Empty,
                     font,
                     () => AnswerQuizOption(capturedIndex),
                     84f,
                     LearningButtonStyle.Surface,
                     LearningUiTheme.RadiusMedium);
+                m_QuizOptionButtons[index].gameObject.name = $"Quiz Option {index + 1} Button";
                 m_QuizOptionLabels[index] = m_QuizOptionButtons[index].GetComponentInChildren<TMP_Text>();
                 m_QuizOptionLabels[index].alignment = TextAlignmentOptions.Center;
                 m_QuizOptionLabels[index].fontSize = 27f;
                 LearningUiTheme.StyleSurface(m_QuizOptionButtons[index].GetComponent<Image>(), LearningUiTheme.Card, LearningUiTheme.RadiusMedium, true, new Vector2(0f, -4f));
+                m_QuizOptionButtons[index].gameObject.SetActive(false);
             }
 
             m_QuizFeedbackText = CreateText(content.transform, "Quiz Feedback", "Choose the best translation.", 23f, font, LearningUiTheme.Muted, TextAlignmentOptions.Center);
@@ -1670,7 +1702,12 @@ namespace AIAR.LanguageLearning.Unity.Presentation
 
         static LearningUiIcon CreateIcon(Transform parent, LearningUiIconType iconType, Color color, float size)
         {
-            var iconObject = new GameObject($"{iconType} Icon", typeof(RectTransform), typeof(LearningUiIcon), typeof(LayoutElement));
+            var iconObject = new GameObject(
+                $"{iconType} Icon",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(LearningUiIcon),
+                typeof(LayoutElement));
             iconObject.transform.SetParent(parent, false);
             var rect = iconObject.GetComponent<RectTransform>();
             rect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -1764,7 +1801,12 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             Color color,
             float height = -1f)
         {
-            var pill = new GameObject(name, typeof(RectTransform), typeof(CanvasGroup), typeof(LearningPillGraphic));
+            var pill = new GameObject(
+                name,
+                typeof(RectTransform),
+                typeof(CanvasGroup),
+                typeof(CanvasRenderer),
+                typeof(LearningPillGraphic));
             pill.transform.SetParent(parent, false);
             var graphic = pill.GetComponent<LearningPillGraphic>();
             graphic.color = color;
@@ -1797,6 +1839,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
                 text.font = font;
 
             SetPreferredHeight(textObject, Mathf.Max(46f, size + 16f));
+            NativeIndicText.Track(text);
             return text;
         }
 

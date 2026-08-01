@@ -14,7 +14,8 @@ The first working MVP should prove the full learning loop with a controlled voca
 5. Record views, pronunciation attempts, and quiz outcomes.
 6. Recommend weak or unseen words for revision.
 
-The current vocabulary catalog contains 32 common objects across English, Hindi, Malayalam, and French.
+The vocabulary catalog covers all 80 COCO detector classes across English, Hindi, Malayalam, and
+French, while retaining the original supplemental learning words for backward compatibility.
 
 ## Folder Layout
 
@@ -31,7 +32,8 @@ The current vocabulary catalog contains 32 common objects across English, Hindi,
 : Reproducibly exported YOLO11n ONNX, exact preprocessing/postprocessing metadata, COCO labels, and the golden validation image.
 
 `Assets/_Project/LanguageLearning/Content/Resources/Vocabulary/vocabulary_catalog.json`
-: MVP word catalog. Add words here first; avoid hardcoding vocabulary in scenes.
+: Runtime word catalog. Every COCO label has a distinct canonical entry and four translations; avoid
+hardcoding vocabulary in scenes.
 
 `Assets/_Project/LanguageLearning/Tests/EditMode`
 : EditMode tests for matching, quiz generation, progress, and adaptive recommendations.
@@ -82,7 +84,9 @@ YOLO11n detector, vocabulary repository, TTS adapter, learning session, and pool
 
 The setup command `AI-AR Language Learning > Setup Main Scene` rebuilds the wiring deterministically.
 It requires the exact `yolo11n_320.onnx` asset and fails loudly if the verified model or its 80 COCO
-labels are absent. There is no mock or silent detector fallback in the production scene.
+labels are absent. The aligned `coco80.en.txt`, `coco80.hi.txt`, `coco80.ml.txt`, and `coco80.fr.txt`
+assets provide a reviewable localization list in detector class order. There is no mock or silent
+detector fallback in the production scene.
 
 The Home screen is deliberately non-AR. Selecting Scan requests Android camera permission, verifies
 AR Foundation availability, enables the AR session/camera/background, waits for initialization or
@@ -161,12 +165,16 @@ that AR caused a learning improvement. A causal effectiveness claim would requir
 or non-AR comparison design. Pronunciation playback is engagement evidence only; it is not pronunciation
 accuracy because the MVP has no speech-assessment model.
 
-## Font Note
+## Font And Shaping Note
 
-Hindi and Malayalam use pre-generated Noto Sans TextMeshPro assets under
-`Content/Resources/Fonts/TMP`. The Latin asset contains persisted Devanagari and Malayalam fallback
-references. Keeping these as imported assets, rather than transient runtime-generated font objects,
-also keeps TextMesh Pro's Android pre-build scan deterministic.
+The UI remains one UGUI hierarchy. Google Sans and the script-specific Noto fonts are bundled under
+`Content/Resources/Fonts`, with persisted TMP fallbacks under its `TMP` subfolder. Glyph coverage alone
+is not sufficient for Indic scripts: Devanagari and Malayalam require contextual substitutions and mark
+reordering. `NativeIndicText` therefore switches labels containing those scripts to the pinned UniText
+UGUI `MaskableGraphic`, which shapes with HarfBuzz and FreeType. The native graphic is a stretched child
+of the original TMP `RectTransform`, so it inherits the same button, layout group, `ScrollRect`, masks,
+`CanvasGroup`, animation, and world-space canvas. It is not a screen-coordinate overlay. Latin and French
+labels stay on the original TMP rendering path.
 
 ## MVP Acceptance Checklist
 
@@ -174,6 +182,7 @@ also keeps TextMesh Pro's Android pre-build scan deterministic.
 - The official YOLO11n COCO export imports with exact input `[1,3,320,320]` and output `[1,84,2100]`.
 - The detector uses GPU display-oriented preprocessing, layer-budgeted inference, non-blocking readback, explicit decoding, class-aware NMS, and temporal stabilization.
 - AR overlay shows translated word, English source word, phonetic hint, and language name.
+- Entering Scan clears the transient object card and boxes without resetting progress or language.
 - A world-space label is placed through AR raycasting when a plane/feature point is available.
 - Scan always exposes English, Hindi, Malayalam, and French selectors plus Back and Speak controls.
 - Speak calls TTS for the current detected word in the selected language and records an attempt.

@@ -39,6 +39,21 @@ namespace AIAR.LanguageLearning.Tests
         }
 
         [Test]
+        public void ObjectLabelNormalizer_PrefersExactCanonicalClassOverLegacyAlias()
+        {
+            var catalog = new[]
+            {
+                Entry("bag", "bag", "personal", "bag", "backpack", "handbag"),
+                Entry("backpack", "backpack", "personal", "backpack")
+            };
+
+            var matched = new ObjectLabelNormalizer().TryFindBestMatch("backpack", catalog, out var entry);
+
+            Assert.IsTrue(matched);
+            Assert.AreEqual("backpack", entry.Id);
+        }
+
+        [Test]
         public void NormalizedBoundingBox_StaysInsideTheViewport()
         {
             var box = new NormalizedBoundingBox(0.85f, 0.9f, 0.5f, 0.4f);

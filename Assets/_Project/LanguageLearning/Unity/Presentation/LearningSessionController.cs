@@ -129,6 +129,20 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             PublishRecognitionPresentations(Array.Empty<RecognitionPresentation>());
         }
 
+        /// <summary>
+        /// Clears only the transient object presentation state. Learning progress and the selected
+        /// language remain untouched, while a subsequent detector update can populate a fresh card.
+        /// </summary>
+        public void ResetObjectDisplayState()
+        {
+            m_CurrentLookup = null;
+            m_CurrentBoundingBox = default;
+            m_RecognitionPresentations.Clear();
+            m_StableRecognitionResults.Clear();
+            m_TrackedRecognitions.Clear();
+            PublishRecognitionPresentations(Array.Empty<RecognitionPresentation>());
+        }
+
         void OnObjectRecognized(ObjectRecognitionResult recognitionResult)
         {
             if (recognitionResult == null)
@@ -648,6 +662,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
         protected virtual void Awake()
         {
             CacheReferences();
+            NativeIndicText.Track(m_LabelText);
             EnsureBoxView(0);
             HideAllBoxViews();
         }
@@ -974,6 +989,7 @@ namespace AIAR.LanguageLearning.Unity.Presentation
             }
 
             labelText.raycastTarget = false;
+            NativeIndicText.Track(labelText);
             return labelText;
         }
 

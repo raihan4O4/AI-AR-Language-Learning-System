@@ -6,6 +6,7 @@ using AIAR.LanguageLearning.Unity.Data;
 using AIAR.LanguageLearning.Unity.ObjectDetection;
 using AIAR.LanguageLearning.Unity.Presentation;
 using AIAR.LanguageLearning.Unity.Speech;
+using LightSide;
 using TMPro;
 using Unity.InferenceEngine;
 using UnityEditor;
@@ -42,12 +43,23 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
         const string NotoSansTmpPath = FontAssetDirectory + "/NotoSans-Regular SDF.asset";
         const string NotoSansDevanagariTmpPath = FontAssetDirectory + "/NotoSansDevanagari-Regular SDF.asset";
         const string NotoSansMalayalamTmpPath = FontAssetDirectory + "/NotoSansMalayalam-Regular SDF.asset";
+        const string UniTextAssetDirectory = "Assets/_Project/LanguageLearning/Content/Resources/Fonts/UniText";
+        const string NotoSansUniTextPath = UniTextAssetDirectory + "/NotoSans-Regular.asset";
+        const string NotoSansDevanagariUniTextPath = UniTextAssetDirectory + "/NotoSansDevanagari-Regular.asset";
+        const string NotoSansMalayalamUniTextPath = UniTextAssetDirectory + "/NotoSansMalayalam-Regular.asset";
+        const string IndicFontStackPath = UniTextAssetDirectory + "/IndicFontStack.asset";
+        const string IndicAppearancePath = UniTextAssetDirectory + "/IndicAppearance.asset";
+        const string UniTextDefaultAppearancePath =
+            "Packages/media.lightside.unitext/Defaults/UniTextAppearance_Default.asset";
+        const string UniTextFaceOnlyMaterialPath =
+            "Packages/media.lightside.unitext/Defaults/UniTextMaterial_FaceOnly.mat";
 
         static LanguageLearningSceneSetup()
         {
             EnforcePortraitOrientation();
             EditorApplication.delayCall += RunPendingSetupIfRequested;
             EditorApplication.delayCall += EnsureFontAssetsReady;
+            EditorApplication.delayCall += EnsureNativeIndicTextAssetsWhenReady;
         }
 
         [MenuItem("AI-AR Language Learning/Setup Main Scene")]
@@ -131,6 +143,7 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
 
         static void SetupMainScene()
         {
+            EnsureNativeIndicTextAssets();
             var scene = OpenMainScene();
 
             ConfigureBuildSettings();
@@ -179,6 +192,173 @@ namespace AIAR.LanguageLearning.Editor.SceneSetup
                 "- AR camera components remain off until the learner opens Scan.\n" +
                 "- Screen-space vocabulary overlay and language/speech buttons added.\n" +
                 "- Existing AR Session and XR Origin were preserved.");
+        }
+
+        static void EnsureNativeIndicTextAssetsWhenReady()
+        {
+            if (EditorApplication.isCompiling || EditorApplication.isUpdating)
+            {
+                EditorApplication.delayCall += EnsureNativeIndicTextAssetsWhenReady;
+                return;
+            }
+
+            try
+            {
+                EnsureNativeIndicTextAssets();
+            }
+            catch (Exception exception)
+            {
+                Debug.LogException(exception);
+            }
+        }
+
+        static void EnsureNativeIndicTextAssets()
+        {
+            EnsureAssetFolder(UniTextAssetDirectory);
+
+            var changed = false;
+            var latinFont = CreateOrUpdateUniTextFont(NotoSansFontPath, NotoSansUniTextPath, ref changed);
+            var devanagariFont = CreateOrUpdateUniTextFont(
+                NotoSansDevanagariFontPath,
+                NotoSansDevanagariUniTextPath,
+                ref changed);
+            var malayalamFont = CreateOrUpdateUniTextFont(
+                NotoSansMalayalamFontPath,
+                NotoSansMalayalamUniTextPath,
+                ref changed);
+
+            var fontStack = AssetDatabase.LoadAssetAtPath<UniTextFontStack>(IndicFontStackPath);
+            if (fontStack == null)
+            {
+                fontStack = ScriptableObject.CreateInstance<UniTextFontStack>();
+                fontStack.name = "Language Learning Indic Font Stack";
+                AssetDatabase.CreateAsset(fontStack, IndicFontStackPath);
+                changed = true;
+            }
+
+            var requiredFonts = new[] { latinFont, devanagariFont, malayalamFont };
+            var fontStackChanged = fontStack.fonts.Count != requiredFonts.Length;
+            for (var index = 0; !fontStackChanged && index < requiredFonts.Length; index++)
+                fontStackChanged = fontStack.fonts[index] != requiredFonts[index];
+            if (fontStackChanged)
+            {
+                fontStack.fonts.Clear();
+                foreach (var font in requiredFonts)
+                    fontStack.fonts.Add(font);
+                EditorUtility.SetDirty(fontStack);
+                changed = true;
+            }
+
+            var appearance = AssetDatabase.LoadAssetAtPath<UniTextAppearance>(IndicAppearancePath);
+            if (appearance == null)
+            {
+                var defaultAppearance = AssetDatabase.LoadAssetAtPath<UniTextAppearance>(
+                    UniTextDefaultAppearancePath);
+                if (defaultAppearance == null)
+                {
+                    throw new FileNotFoundException(
+                        "The pinned UniText default appearance was not found.",
+                        UniTextDefaultAppearancePath);
+                }
+
+                appearance = UnityEngine.Object.Instantiate(defaultAppearance);
+                appearance.name = "Language Learning Indic Appearance";
+                AssetDatabase.CreateAsset(appearance, IndicAppearancePath);
+                changed = true;
+            }
+
+            var faceOnlyMaterial = AssetDatabase.LoadAssetAtPath<Material>(UniTextFaceOnlyMaterialPath);
+            if (faceOnlyMaterial == null)
+            {
+                throw new FileNotFoundException(
+                    "The pinned UniText face-only material was not found.",
+                    UniTextFaceOnlyMaterialPath);
+            }
+
+            // UniText's default demo appearance enables an outline and underlay. Keep shaping,
+            // but use one face-only pass so the source label's color is rendered without effects.
+            var serializedAppearance = new SerializedObject(appearance);
+            var defaultMaterials = serializedAppearance.FindProperty("defaultMaterials.items");
+            var fontMaterials = serializedAppearance.FindProperty("fontMaterials.items");
+            var appearanceChanged = defaultMaterials.arraySize != 1 ||
+                                    defaultMaterials.GetArrayElementAtIndex(0).objectReferenceValue != faceOnlyMaterial ||
+                                    fontMaterials.arraySize != 0;
+            if (appearanceChanged)
+            {
+                defaultMaterials.arraySize = 1;
+                defaultMaterials.GetArrayElementAtIndex(0).objectReferenceValue = faceOnlyMaterial;
+                fontMaterials.arraySize = 0;
+                serializedAppearance.ApplyModifiedPropertiesWithoutUndo();
+                EditorUtility.SetDirty(appearance);
+                changed = true;
+            }
+
+            if (changed)
+            {
+                AssetDatabase.SaveAssets();
+                Debug.Log("Prepared native HarfBuzz font assets for Devanagari and Malayalam.");
+            }
+        }
+
+        static UniTextFont CreateOrUpdateUniTextFont(
+            string sourcePath,
+            string assetPath,
+            ref bool changed)
+        {
+            if (!File.Exists(sourcePath))
+                throw new FileNotFoundException("An Indic source font is missing.", sourcePath);
+
+            var fontBytes = File.ReadAllBytes(sourcePath);
+            var expectedHash = UniTextFont.ComputeFontDataHash(fontBytes);
+            var fontAsset = AssetDatabase.LoadAssetAtPath<UniTextFont>(assetPath);
+            if (fontAsset == null)
+            {
+                fontAsset = UniTextFont.CreateFontAsset(fontBytes, 90, 0.25f, UniTextRenderMode.SDF, 1024);
+                if (fontAsset == null)
+                    throw new InvalidOperationException($"Could not create native font asset from {sourcePath}.");
+
+                fontAsset.name = Path.GetFileNameWithoutExtension(sourcePath) + " UniText";
+                fontAsset.sourceFont = AssetDatabase.LoadAssetAtPath<Font>(sourcePath);
+                AssetDatabase.CreateAsset(fontAsset, assetPath);
+                changed = true;
+                return fontAsset;
+            }
+
+            var fontChanged = false;
+            if (fontAsset.FontDataHash != expectedHash)
+            {
+                fontAsset.SetFontData(fontBytes);
+                fontAsset.ClearDynamicData();
+                fontChanged = true;
+            }
+
+            var sourceFont = AssetDatabase.LoadAssetAtPath<Font>(sourcePath);
+            if (fontAsset.sourceFont != sourceFont)
+            {
+                fontAsset.sourceFont = sourceFont;
+                fontChanged = true;
+            }
+
+            if (fontChanged)
+            {
+                EditorUtility.SetDirty(fontAsset);
+                changed = true;
+            }
+            return fontAsset;
+        }
+
+        static void EnsureAssetFolder(string assetPath)
+        {
+            if (AssetDatabase.IsValidFolder(assetPath))
+                return;
+
+            var parent = Path.GetDirectoryName(assetPath)?.Replace('\\', '/');
+            var folderName = Path.GetFileName(assetPath);
+            if (string.IsNullOrWhiteSpace(parent) || string.IsNullOrWhiteSpace(folderName))
+                throw new InvalidOperationException($"Invalid Unity asset folder path: {assetPath}");
+
+            EnsureAssetFolder(parent);
+            AssetDatabase.CreateFolder(parent, folderName);
         }
 
         static void ConfigureArScanLifecycle()
