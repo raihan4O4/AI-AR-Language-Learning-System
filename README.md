@@ -2,8 +2,6 @@
 
 An Android-first Unity application that turns real-world objects into interactive vocabulary lessons. The app uses augmented reality and on-device YOLO11 object detection to identify everyday objects, show multilingual labels, play pronunciation, generate quizzes, and track learning progress.
 
-![AI-AR Language Learning UI](Assets/_Project/LanguageLearning/Documentation/UI/PremiumARLanguageLearning-Mockups.png)
-
 ## Features
 
 - Real-time AR object recognition for all 80 COCO object classes
